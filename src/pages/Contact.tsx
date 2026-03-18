@@ -2,8 +2,9 @@ import { type FormEvent, type ReactNode, useState } from 'react';
 import { MapPin, MessageCircle, Phone } from 'lucide-react';
 import Button from '../components/Button';
 import { InputField, PageHero, SectionIntro, TextAreaField } from '../components/primitives';
-import { companySettings } from '../data/content';
+import { companySettings, asset } from '../data/content';
 import { generateId } from '../lib/utils';
+
 import { useTailoredStore } from '../store/useTailoredStore';
 
 export default function Contact() {
@@ -47,8 +48,9 @@ export default function Contact() {
         eyebrow="Get in touch"
         title="Visit the studio or start the conversation online"
         body="The consultation can begin through WhatsApp, the room visualiser, or a direct message here."
-        image="https://images.pexels.com/photos/32493215/pexels-photo-32493215.jpeg?auto=compress&cs=tinysrgb&w=1800"
+        image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (5).jpg')}
         heightClassName="min-h-[56svh]"
+
       />
 
       <section className="tm-section">

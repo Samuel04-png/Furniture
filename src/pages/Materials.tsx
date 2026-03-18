@@ -3,6 +3,9 @@ import { ArrowRight } from 'lucide-react';
 import Button from '../components/Button';
 import { PageHero, Reveal, SectionIntro } from '../components/primitives';
 import { useTailoredStore } from '../store/useTailoredStore';
+import { asset } from '../data/content';
+import Image from '../components/Image';
+
 
 export default function Materials() {
   const materials = useTailoredStore((state) => state.materials);
@@ -13,8 +16,9 @@ export default function Materials() {
         eyebrow="Material library"
         title="Zambian hardwood, treated as the hero"
         body="The platform treats material as more than a dropdown. Each timber has its own visual identity, tonal range, and ideal applications."
-        image="https://images.pexels.com/photos/13570885/pexels-photo-13570885.jpeg?auto=compress&cs=tinysrgb&w=1800"
+        image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (4).jpg')}
         heightClassName="min-h-[58svh]"
+
       />
 
       <section className="tm-section">
@@ -30,9 +34,10 @@ export default function Materials() {
               <Reveal key={material.id} delay={index * 0.08}>
                 <div className={`grid gap-8 overflow-hidden border border-black/10 bg-tm-off-white lg:grid-cols-2 ${index % 2 === 1 ? 'lg:[&>*:first-child]:order-last' : ''}`}>
                   <div className="relative min-h-[26rem] overflow-hidden">
-                    <img src={material.grainImage} alt={material.name} className="absolute inset-0 h-full w-full object-cover" />
+                    <Image src={material.grainImage} alt={material.name} fill />
                     <div className="absolute inset-0 bg-[rgba(12,12,12,0.18)]" />
                   </div>
+
                   <div className="flex flex-col justify-center p-8 md:p-10">
                     <p className="font-dm text-[11px] uppercase tracking-[0.25em] text-tm-gold">{material.origin}</p>
                     <h2 className="mt-4 font-cormorant text-[clamp(2.6rem,4vw,4rem)] font-light leading-[0.96] tracking-[-0.04em] text-tm-obsidian">

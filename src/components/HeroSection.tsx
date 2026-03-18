@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import Button from './Button';
-import { WordmarkLockup } from './primitives';
+import { Reveal, WordmarkLockup } from './primitives';
+
+import { asset } from '../data/content';
 
 function TypewriterHeadline() {
   const lines = ['Your Space.', 'Masterfully Tailored.'];
@@ -54,47 +56,62 @@ function TypewriterHeadline() {
 
 export default function HeroSection() {
   return (
-    <section className="bg-tm-obsidian pt-[var(--tm-nav-height-mobile)] text-tm-cream md:pt-[var(--tm-nav-height)]">
-      <div className="grid min-h-[calc(100vh-var(--tm-nav-height-mobile))] lg:min-h-[calc(100vh-var(--tm-nav-height))] lg:grid-cols-[54%_46%]">
-        <div className="relative z-0 min-h-[46svh] overflow-hidden lg:min-h-full">
-          <img
-            src="https://images.pexels.com/photos/6790932/pexels-photo-6790932.jpeg?auto=compress&cs=tinysrgb&w=1800"
-            alt="Tailored Manor workshop craftsmanship"
-            loading="eager"
-            decoding="async"
-            fetchPriority="high"
-            className="absolute inset-0 h-full w-full object-cover tm-ken-burns"
-          />
-          {/* Mobile-only integrated overlay and gradient blend */}
-          <div className="absolute inset-0 bg-tm-obsidian/35 lg:hidden" />
-          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-tm-charcoal via-tm-charcoal/90 to-transparent lg:hidden" />
-        </div>
+    <section className="relative min-h-[calc(100vh-var(--tm-nav-height-mobile))] overflow-hidden bg-tm-charcoal text-tm-cream lg:min-h-[calc(100vh-var(--tm-nav-height))]">
+      {/* Background Video Layer */}
+      <div className="absolute inset-0 z-0">
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          className="h-full w-full object-cover"
+          poster={asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (1).jpg')}
+        >
+          <source src={asset('videos/Behind every finished piece are skilled hands doing the work.This is Sikale, in motion - proudly.mp4')} type="video/mp4" />
+        </video>
+        {/* Darkened Overlay for Contrast */}
+        <div className="absolute inset-0 bg-tm-obsidian/60" />
+      </div>
 
-        <div className="relative z-10 -mt-20 bg-tm-charcoal lg:mt-0">
-          <div className="flex min-h-full items-center px-6 pb-20 pt-16 sm:px-10 lg:px-16 lg:py-24">
-            <div className="max-w-[620px]">
-              <WordmarkLockup inverted className="mb-16 hidden lg:block" />
-              <div className="tm-eyebrow">
-                <span>Bespoke furniture studio · Lusaka</span>
-              </div>
-              <div className="mt-6">
-                <TypewriterHeadline />
-              </div>
-              <p className="mt-8 max-w-[420px] font-dm text-[clamp(15.5px,1vw,17.5px)] font-light leading-[1.8] text-[rgba(245,239,230,0.6)]">
+      {/* Content Layer */}
+      <div className="tm-container relative z-10 flex min-h-[inherit] items-center">
+        <div className="grid w-full gap-12 lg:grid-cols-[58%_42%] lg:gap-20">
+          <div className="flex flex-col justify-center py-20 lg:py-32">
+            <Reveal className="mb-12 hidden lg:block">
+              <WordmarkLockup inverted showTagline={false} className="opacity-80" />
+            </Reveal>
+            
+            <div className="tm-eyebrow mb-8">
+              <span>Bespoke furniture studio · Lusaka</span>
+            </div>
+            
+            <TypewriterHeadline />
+            
+            <Reveal delay={0.6}>
+              <p className="mt-8 max-w-[460px] font-dm text-[clamp(16px,1.1vw,18px)] font-light leading-[1.8] text-tm-cream/60">
                 Bespoke hardwood furniture, handcrafted in Zambia from the finest local timber and tailored to the exact rhythm of your room.
               </p>
-              <div className="mt-12 flex flex-col gap-4 sm:flex-row sm:gap-5">
-                <Button to="/visualise" variant="primary" className="min-w-[220px]">
-                  Visualise Your Space
-                </Button>
-                <Button to="/collections" variant="secondary" className="min-w-[220px]">
-                  Explore Collections
-                </Button>
-              </div>
-            </div>
+            </Reveal>
+
+            <Reveal delay={0.8} className="mt-12 flex flex-col gap-4 sm:flex-row sm:gap-6">
+              <Button to="/visualise" variant="primary" className="px-10 py-5">
+                Visualise Your Space
+              </Button>
+              <Button to="/collections" variant="secondary" className="px-10 py-5">
+                Explore Collections
+              </Button>
+            </Reveal>
           </div>
+          
+          {/* Right column empty to allow video to breathe on desktop */}
+          <div className="hidden lg:block" />
         </div>
       </div>
+      
+      {/* Mobile-only bottom fade to blend with next section */}
+      <div className="absolute inset-x-0 bottom-0 z-20 h-32 bg-gradient-to-t from-tm-charcoal to-transparent lg:hidden" />
     </section>
   );
 }
+

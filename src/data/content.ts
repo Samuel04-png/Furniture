@@ -9,8 +9,9 @@ import type {
   UpholsterySwatch,
 } from '../types';
 
-const pexels = (id: number, width = 1600) =>
-  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=${width}`;
+// Local assets are served from /assets/
+export const asset = (path: string) => `${import.meta.env.BASE_URL}assets/${path}`;
+
 
 const upholsterySwatches: UpholsterySwatch[] = [
   { id: 'saddle-leather', name: 'Saddle Leather', category: 'Leather', color: '#8B5E3C' },
@@ -31,7 +32,7 @@ export const materials: Material[] = [
     character:
       'Warm, optimistic, and highly architectural. Mukwa ages with grace and brings a naturally expensive glow to large statement pieces.',
     bestFor: ['Dining tables', 'Statement sofas', 'Bedroom suites'],
-    grainImage: pexels(13570885, 900),
+    grainImage: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he.jpg'),
     tone: '#B37A42',
     accentTone: '#E8BB78',
     availableFinishes: ['Matt', 'Medium Gloss', 'High Gloss'],
@@ -45,7 +46,7 @@ export const materials: Material[] = [
     character:
       'Formal, rooted, and rich. Best used when a piece should feel like it belongs in the room for generations.',
     bestFor: ['Credenzas', 'Executive desks', 'Storage walls'],
-    grainImage: pexels(34125692, 900),
+    grainImage: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (1).jpg'),
     tone: '#5A2B28',
     accentTone: '#9A605B',
     availableFinishes: ['Matt', 'Medium Gloss', 'High Gloss'],
@@ -59,7 +60,7 @@ export const materials: Material[] = [
     character:
       'Relaxed and quietly premium. Teak is the material for restrained luxury and indoor-outdoor continuity.',
     bestFor: ['Outdoor seating', 'Minimal lounge chairs', 'Office pieces'],
-    grainImage: pexels(36299690, 900),
+    grainImage: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (2).jpg'),
     tone: '#9D7A45',
     accentTone: '#D6B276',
     availableFinishes: ['Matt', 'Medium Gloss'],
@@ -73,7 +74,8 @@ export const materials: Material[] = [
     character:
       'Polished, classic, and deeply tactile. Ideal for heirloom pieces with refined detailing and sculpted edges.',
     bestFor: ['Beds', 'Dressers', 'Traditional dining'],
-    grainImage: pexels(36495171, 900),
+    grainImage: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (3).jpg'),
+
     tone: '#7B4A33',
     accentTone: '#C37A4A',
     availableFinishes: ['Matt', 'Medium Gloss', 'High Gloss'],
@@ -92,9 +94,12 @@ export const products: Product[] = [
     materials: ['mukwa', 'rosewood', 'teak'],
     finishes: ['Matt', 'Medium Gloss', 'High Gloss'],
     upholsterySwatches,
-    heroImage: pexels(7051278),
-    cardImage: pexels(12513485, 1200),
-    gallery: [pexels(7051278), pexels(12513485), pexels(276583), pexels(1571460)],
+    heroImage: asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe.jpg'),
+    cardImage: asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (1).jpg'),
+    gallery: [
+      asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (2).jpg'),
+      asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (3).jpg'),
+    ],
     summary: 'Low-slung seating with a hardwood frame that makes the room feel settled from the first glance.',
     story:
       'Designed for long evenings and layered conversation, the Zambezi Sofa balances a generous seat depth with a disciplined hardwood reveal. It is a living-room anchor built for homes that entertain beautifully.',
@@ -112,9 +117,9 @@ export const products: Product[] = [
     tags: ['living room', 'upholstered', 'statement'],
     overlayKind: 'sofa',
     processGallery: [
-      { title: 'Frame Joinery', caption: 'Mortise-and-tenon joints tuned to the final span and seating depth.', image: pexels(6790932) },
-      { title: 'Hand Sanding', caption: 'Edges are broken by hand so the timber feels soft rather than sharp.', image: pexels(7482636) },
-      { title: 'Finish Match', caption: 'The timber tone is balanced against your upholstery before final sealing.', image: pexels(5974351) },
+      { title: 'Frame Joinery', caption: 'Mortise-and-tenon joints tuned to the final span and seating depth.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup.jpg') },
+      { title: 'Hand Sanding', caption: 'Edges are broken by hand so the timber feels soft rather than sharp.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (1).jpg') },
+      { title: 'Finish Match', caption: 'The timber tone is balanced against your upholstery before final sealing.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (2).jpg') },
     ],
   },
   {
@@ -127,9 +132,14 @@ export const products: Product[] = [
     status: 'Live',
     materials: ['mukwa', 'mahogany', 'rosewood'],
     finishes: ['Matt', 'Medium Gloss', 'High Gloss'],
-    heroImage: pexels(5997993),
-    cardImage: pexels(271816, 1200),
-    gallery: [pexels(5997993), pexels(271816), pexels(1543441), pexels(4906504)],
+    heroImage: asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor.jpg'),
+    cardImage: asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (1).jpg'),
+    gallery: [
+      asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (2).jpg'),
+      asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (3).jpg'),
+      asset('An intricate design for those looking for something a little more special. 🍽️This dining table .jpg'),
+      asset('An intricate design for those looking for something a little more special. 🍽️This dining table  (1).jpg'),
+    ],
     summary: 'A generous slab-style dining table shaped to feel ceremonial without becoming heavy.',
     story:
       'This dining table is cut to celebrate the timber first. The softened edge profile and sculpted base keep the scale confident but welcoming, allowing the grain to do most of the talking.',
@@ -147,9 +157,9 @@ export const products: Product[] = [
     tags: ['dining', 'solid hardwood', 'family'],
     overlayKind: 'table',
     processGallery: [
-      { title: 'Timber Selection', caption: 'Boards are selected for flow so the top reads as one continuous statement.', image: pexels(5710873) },
-      { title: 'Base Fabrication', caption: 'The base is tuned to the top thickness and final room scale.', image: pexels(35919730) },
-      { title: 'Final Oil', caption: 'Multiple coats enrich the warmth while preserving the tactile grain.', image: pexels(5974351) },
+      { title: 'Timber Selection', caption: 'Boards are selected for flow so the top reads as one continuous statement.', image: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he.jpg') },
+      { title: 'Base Fabrication', caption: 'The base is tuned to the top thickness and final room scale.', image: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (1).jpg') },
+      { title: 'Final Oil', caption: 'Multiple coats enrich the warmth while preserving the tactile grain.', image: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (2).jpg') },
     ],
   },
   {
@@ -163,9 +173,14 @@ export const products: Product[] = [
     materials: ['teak', 'mukwa', 'mahogany'],
     finishes: ['Matt', 'Medium Gloss'],
     upholsterySwatches,
-    heroImage: pexels(6489127),
-    cardImage: pexels(1571460, 1200),
-    gallery: [pexels(6489127), pexels(1571460), pexels(276583), pexels(271743)],
+    heroImage: asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe.jpg'),
+    cardImage: asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (1).jpg'),
+    gallery: [
+      asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe.jpg'),
+      asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (1).jpg'),
+      asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (2).jpg'),
+      asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (3).jpg'),
+    ],
     summary: 'An exposed timber lounge chair with tailored upholstery and a quiet, gallery-like profile.',
     story:
       'The Kalabo Chair is defined by restraint: a slim timber frame, open sides, and a floating seat that lets the material read as architecture. It works alone or in pairs.',
@@ -182,9 +197,9 @@ export const products: Product[] = [
     tags: ['accent seating', 'pairing piece', 'reading chair'],
     overlayKind: 'chair',
     processGallery: [
-      { title: 'Bent Profile', caption: 'Arm and back geometry are refined for visual lightness and comfort.', image: pexels(7482636) },
-      { title: 'Seat Build', caption: 'Foam density and fabric direction are matched to the room use case.', image: pexels(8447892) },
-      { title: 'Stain Control', caption: 'Every finish is sample matched before final upholstery installation.', image: pexels(5974351) },
+      { title: 'Bent Profile', caption: 'Arm and back geometry are refined for visual lightness and comfort.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (2).jpg') },
+      { title: 'Seat Build', caption: 'Foam density and fabric direction are matched to the room use case.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (3).jpg') },
+      { title: 'Stain Control', caption: 'Every finish is sample matched before final upholstery installation.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup.jpg') },
     ],
   },
   {
@@ -197,9 +212,14 @@ export const products: Product[] = [
     status: 'Live',
     materials: ['rosewood', 'mahogany', 'mukwa'],
     finishes: ['Matt', 'Medium Gloss', 'High Gloss'],
-    heroImage: pexels(3932930),
-    cardImage: pexels(6489117, 1200),
-    gallery: [pexels(3932930), pexels(6489117), pexels(32493215), pexels(6585758)],
+    heroImage: asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor.jpg'),
+    cardImage: asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (1).jpg'),
+    gallery: [
+      asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor.jpg'),
+      asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (2).jpg'),
+      asset('An intricate design for those looking for something a little more special. 🍽️This dining table .jpg'),
+      asset('An intricate design for those looking for something a little more special. 🍽️This dining table  (1).jpg'),
+    ],
     summary: 'A long-form storage piece for media rooms, dining rooms, and calm executive interiors.',
     story:
       'The Rosewood Credenza is built to hide the practical without feeling utilitarian. Push-to-open fronts and a sculpted plinth keep the form clean while the grain carries the richness.',
@@ -216,9 +236,9 @@ export const products: Product[] = [
     tags: ['storage', 'media unit', 'custom cabinetry'],
     overlayKind: 'cabinet',
     processGallery: [
-      { title: 'Casework Build', caption: 'Panels are matched so grain direction reads uninterrupted across doors.', image: pexels(5710873) },
-      { title: 'Hardware Setting', caption: 'Each hinge and runner is tuned for silent operation and even reveals.', image: pexels(35919730) },
-      { title: 'Final Inspection', caption: 'The finish is checked under soft and direct light before dispatch.', image: pexels(6790932) },
+      { title: 'Casework Build', caption: 'Panels are matched so grain direction reads uninterrupted across doors.', image: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (4).jpg') },
+      { title: 'Hardware Setting', caption: 'Each hinge and runner is tuned for silent operation and even reveals.', image: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (3).jpg') },
+      { title: 'Final Inspection', caption: 'The finish is checked under soft and direct light before dispatch.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (4).jpg') },
     ],
   },
   {
@@ -232,9 +252,15 @@ export const products: Product[] = [
     materials: ['mahogany', 'mukwa', 'rosewood'],
     finishes: ['Matt', 'Medium Gloss', 'High Gloss'],
     upholsterySwatches,
-    heroImage: pexels(6186525),
-    cardImage: pexels(279719, 1200),
-    gallery: [pexels(6186525), pexels(279719), pexels(1643383), pexels(271743)],
+    heroImage: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup.jpg'),
+    cardImage: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (1).jpg'),
+    gallery: [
+      asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (1).jpg'),
+      asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (2).jpg'),
+      asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (3).jpg'),
+      asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se.jpg'),
+      asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (1).jpg'),
+    ],
     summary: 'An upholstered hardwood bed frame composed to feel calm, grounded, and unmistakably bespoke.',
     story:
       'The Luangwa Bed turns the bedroom into a retreat. The timber frame is proportioned to feel substantial without becoming bulky, while the headboard can be softened with leather, velvet, or linen.',
@@ -252,9 +278,9 @@ export const products: Product[] = [
     tags: ['bedroom', 'upholstered', 'heirloom'],
     overlayKind: 'bed',
     processGallery: [
-      { title: 'Headboard Mockup', caption: 'Scale studies ensure the bed sits correctly beneath artwork and wall lighting.', image: pexels(8447892) },
-      { title: 'Frame Assembly', caption: 'Load-bearing sections are reinforced for silent, long-term performance.', image: pexels(6790932) },
-      { title: 'Fabric Upholstery', caption: 'Each upholstered panel is wrapped by hand for clean seams and soft edges.', image: pexels(7482636) },
+      { title: 'Headboard Mockup', caption: 'Scale studies ensure the bed sits correctly beneath artwork and wall lighting.', image: asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (2).jpg') },
+      { title: 'Frame Assembly', caption: 'Load-bearing sections are reinforced for silent, long-term performance.', image: asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (3).jpg') },
+      { title: 'Fabric Upholstery', caption: 'Each upholstered panel is wrapped by hand for clean seams and soft edges.', image: asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (4).jpg') },
     ],
   },
   {
@@ -267,9 +293,14 @@ export const products: Product[] = [
     status: 'Live',
     materials: ['rosewood', 'teak', 'mukwa'],
     finishes: ['Matt', 'Medium Gloss'],
-    heroImage: pexels(32493215),
-    cardImage: pexels(3932930, 1200),
-    gallery: [pexels(32493215), pexels(3932930), pexels(6489117), pexels(6585758)],
+    heroImage: asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se.jpg'),
+    cardImage: asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (1).jpg'),
+    gallery: [
+      asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (2).jpg'),
+      asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (3).jpg'),
+      asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (4).jpg'),
+      asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (5).jpg'),
+    ],
     summary: 'A quietly commanding desk with storage integrated into the massing rather than added as clutter.',
     story:
       'Created for founders, directors, and private studies, the Copperbelt Desk prioritises presence without showiness. Cable paths are concealed, storage is balanced, and the timber edge remains the focus.',
@@ -286,9 +317,9 @@ export const products: Product[] = [
     tags: ['study', 'executive', 'storage integrated'],
     overlayKind: 'desk',
     processGallery: [
-      { title: 'Layout Drafting', caption: 'Power, storage, and seating clearances are mapped before cut lists are approved.', image: pexels(35919730) },
-      { title: 'Drawer Detailing', caption: 'Desk drawers receive fine reveals and felt-lined internals where required.', image: pexels(5710873) },
-      { title: 'Final Buff', caption: 'A satin finish gives the desk a refined glow without glare under task lighting.', image: pexels(5974351) },
+      { title: 'Layout Drafting', caption: 'Power, storage, and seating clearances are mapped before cut lists are approved.', image: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (4).jpg') },
+      { title: 'Drawer Detailing', caption: 'Desk drawers receive fine reveals and felt-lined internals where required.', image: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (3).jpg') },
+      { title: 'Final Buff', caption: 'A satin finish gives the desk a refined glow without glare under task lighting.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (4).jpg') },
     ],
   },
   {
@@ -301,9 +332,14 @@ export const products: Product[] = [
     status: 'Live',
     materials: ['mukwa', 'mahogany', 'teak'],
     finishes: ['Matt', 'Medium Gloss', 'High Gloss'],
-    heroImage: pexels(6585758),
-    cardImage: pexels(271743, 1200),
-    gallery: [pexels(6585758), pexels(271743), pexels(276583), pexels(1571460)],
+    heroImage: asset('An intricate design for those looking for something a little more special. 🍽️This dining table .jpg'),
+    cardImage: asset('An intricate design for those looking for something a little more special. 🍽️This dining table  (1).jpg'),
+    gallery: [
+      asset('An intricate design for those looking for something a little more special. 🍽️This dining table .jpg'),
+      asset('An intricate design for those looking for something a little more special. 🍽️This dining table  (1).jpg'),
+      asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor.jpg'),
+      asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (1).jpg'),
+    ],
     summary: 'A sculpted entry console that introduces the house with warmth, rhythm, and restraint.',
     story:
       'The Kasama Console is designed for transitional spaces: entrances, corridors, and behind-sofa zones. Its proportions are tuned to artwork, mirrors, and circulation rather than just storage.',
@@ -320,9 +356,9 @@ export const products: Product[] = [
     tags: ['entry', 'corridor', 'statement'],
     overlayKind: 'table',
     processGallery: [
-      { title: 'Edge Profile', caption: 'The profile is softened to read elegant from every angle in circulation spaces.', image: pexels(7482636) },
-      { title: 'Shelf Setting', caption: 'Spacing is adapted to styling objects, books, or hidden baskets.', image: pexels(35919730) },
-      { title: 'Tone Finish', caption: 'The finish is matched to the adjoining floor and wall palette.', image: pexels(5974351) },
+      { title: 'Edge Profile', caption: 'The profile is softened to read elegant from every angle in circulation spaces.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (5).jpg') },
+      { title: 'Shelf Setting', caption: 'Spacing is adapted to styling objects, books, or hidden baskets.', image: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (3).jpg') },
+      { title: 'Tone Finish', caption: 'The finish is matched to the adjoining floor and wall palette.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (6).jpg') },
     ],
   },
   {
@@ -336,9 +372,14 @@ export const products: Product[] = [
     materials: ['teak'],
     finishes: ['Matt'],
     upholsterySwatches: upholsterySwatches.filter((item) => item.category !== 'Velvet'),
-    heroImage: pexels(6489127),
-    cardImage: pexels(5997993, 1200),
-    gallery: [pexels(6489127), pexels(5997993), pexels(12513485), pexels(271816)],
+    heroImage: asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (2).jpg'),
+    cardImage: asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (3).jpg'),
+    gallery: [
+      asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (2).jpg'),
+      asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (3).jpg'),
+      asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe.jpg'),
+      asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (1).jpg'),
+    ],
     summary: 'Modular outdoor seating built in teak for terraces, patios, and poolside lounges.',
     story:
       'The Savanna collection brings indoor levels of refinement outside. Thick teak members, outdoor-grade upholstery, and modular layouts create a hospitality-grade setup for private homes.',
@@ -355,19 +396,21 @@ export const products: Product[] = [
     tags: ['outdoor', 'modular', 'teak'],
     overlayKind: 'outdoor',
     processGallery: [
-      { title: 'Teak Prep', caption: 'Boards are selected and sealed for outdoor stability and colour consistency.', image: pexels(5710873) },
-      { title: 'Weather Detailing', caption: 'Joints and drainage allowances are tuned for exterior conditions.', image: pexels(6790932) },
-      { title: 'Outdoor Upholstery', caption: 'Performance fabrics are paired with quick-dry foam inserts.', image: pexels(8447892) },
+      { title: 'Teak Prep', caption: 'Boards are selected and sealed for outdoor stability and colour consistency.', image: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (4).jpg') },
+      { title: 'Weather Detailing', caption: 'Joints and drainage allowances are tuned for exterior conditions.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (7).jpg') },
+      { title: 'Outdoor Upholstery', caption: 'Performance fabrics are paired with quick-dry foam inserts.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (8).jpg') },
     ],
   },
 ];
 
+
 export const featureProducts = ['zambezi-sofa', 'mukwa-dining-table', 'kalabo-lounge-chair', 'rosewood-credenza'];
 
+
 export const sampleRooms: SampleRoom[] = [
-  { id: 'room-lounge', name: 'Editorial Lounge', image: pexels(7051278), spaceType: 'Living' },
-  { id: 'room-dining', name: 'Warm Dining Room', image: pexels(5997993), spaceType: 'Dining' },
-  { id: 'room-study', name: 'Private Study', image: pexels(32493215), spaceType: 'Office' },
+  { id: 'room-lounge', name: 'Editorial Lounge', image: asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe.jpg'), spaceType: 'Living' },
+  { id: 'room-dining', name: 'Warm Dining Room', image: asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor.jpg'), spaceType: 'Dining' },
+  { id: 'room-study', name: 'Private Study', image: asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (5).jpg'), spaceType: 'Office' },
 ];
 
 export const testimonials: Testimonial[] = [
@@ -377,15 +420,16 @@ export const testimonials: Testimonial[] = [
       'The dining suite changed the rhythm of our home. It feels architecturally part of the room, not simply placed inside it.',
     clientName: 'Chanda',
     location: 'Kabulonga Residence',
-    image: pexels(5997993),
+    image: asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (1).jpg'),
   },
   {
     id: 'test-2',
+
     quote:
       'The visualiser gave us the confidence to commission a full lounge set. What arrived felt exactly right for the scale of the room.',
     clientName: 'Mwaka',
     location: 'Roma Townhouse',
-    image: pexels(12513485),
+    image: asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (2).jpg'),
   },
   {
     id: 'test-3',
@@ -393,7 +437,7 @@ export const testimonials: Testimonial[] = [
       'The desk feels like a proper piece of architecture. It brought focus and calm to the office immediately.',
     clientName: 'Tendai',
     location: 'Lusaka Studio Office',
-    image: pexels(32493215),
+    image: asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (6).jpg'),
   },
 ];
 
@@ -404,8 +448,12 @@ export const portfolioProjects: PortfolioProject[] = [
     title: 'Kabulonga Residence',
     location: 'Lusaka, Zambia',
     category: 'Whole-Home Furnishing',
-    heroImage: pexels(12513485),
-    gallery: [pexels(12513485), pexels(7051278), pexels(271743), pexels(1571460)],
+    heroImage: asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe.jpg'),
+    gallery: [
+      asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (1).jpg'),
+      asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (2).jpg'),
+      asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (3).jpg'),
+    ],
     summary:
       'A family lounge and dining suite composed around a warm neutral palette, Mukwa joinery, and layered upholstery.',
     challenge:
@@ -423,8 +471,12 @@ export const portfolioProjects: PortfolioProject[] = [
     title: 'Leopards Hill Dining Suite',
     location: 'Leopards Hill, Zambia',
     category: 'Dining + Entertaining',
-    heroImage: pexels(5997993),
-    gallery: [pexels(5997993), pexels(271816), pexels(1543441), pexels(4906504)],
+    heroImage: asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor.jpg'),
+    gallery: [
+      asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (1).jpg'),
+      asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (2).jpg'),
+      asset('dining setup/A beautifully put-together dining setup designed to make every meal feel special, Bringing effor (3).jpg'),
+    ],
     summary:
       'A large-format dining environment built for weekly hosting, with a table proportioned to anchor the entire open-plan room.',
     challenge:
@@ -436,60 +488,15 @@ export const portfolioProjects: PortfolioProject[] = [
     testimonial:
       'It is the first thing people notice, and the one thing everyone asks about before dinner starts.',
   },
-  {
-    id: 'proj-roma-study',
-    slug: 'roma-study-retreat',
-    title: 'Roma Study Retreat',
-    location: 'Roma, Lusaka',
-    category: 'Executive Home Office',
-    heroImage: pexels(32493215),
-    gallery: [pexels(32493215), pexels(3932930), pexels(6489117), pexels(6585758)],
-    summary:
-      'A private study designed around a custom desk, storage credenza, and warm ambient lighting.',
-    challenge:
-      'The room needed to feel authoritative for client calls and calm enough for deep focused work.',
-    solution:
-      'Rosewood and teak were combined to balance richness with brightness, while the storage wall concealed office clutter completely.',
-    materials: ['rosewood', 'teak'],
-    metrics: ['2-zone workspace', 'Cable-managed desk', 'Acoustic styling'],
-    testimonial:
-      'The room became calmer, sharper, and more productive the day it was installed.',
-  },
-  {
-    id: 'proj-siavonga',
-    slug: 'siavonga-patio-lounge',
-    title: 'Siavonga Patio Lounge',
-    location: 'Siavonga, Zambia',
-    category: 'Outdoor Living',
-    heroImage: pexels(6489127),
-    gallery: [pexels(6489127), pexels(5997993), pexels(12513485), pexels(271816)],
-    summary:
-      'An outdoor teak lounge designed to mirror the refinement of the interior while withstanding full sun exposure.',
-    challenge:
-      'The client wanted true hospitality-level comfort outside without heavy commercial furniture language.',
-    solution:
-      'We created a modular teak arrangement with performance upholstery and a stone-accent coffee table.',
-    materials: ['teak'],
-    metrics: ['3-module lounge', 'Outdoor coffee table', 'Quick-dry cushions'],
-    testimonial:
-      'It feels like a boutique resort, but it still belongs naturally to our home.',
-  },
-];
-
-export const teamMembers: TeamMember[] = [
-  { id: 'team-jane', name: 'Jane Doe', role: 'Owner', email: 'jane@tailoredmanor.com', phone: '+260 977 000 111', initials: 'JD' },
-  { id: 'team-mwila', name: 'Mwila Banda', role: 'Designer', email: 'mwila@tailoredmanor.com', phone: '+260 977 000 112', initials: 'MB' },
-  { id: 'team-amos', name: 'Amos Phiri', role: 'Sales', email: 'amos@tailoredmanor.com', phone: '+260 977 000 113', initials: 'AP' },
-  { id: 'team-kelvin', name: 'Kelvin Zulu', role: 'Workshop', email: 'kelvin@tailoredmanor.com', phone: '+260 977 000 114', initials: 'KZ' },
 ];
 
 export const companySettings: CompanySettings = {
   companyName: 'Tailored Manor',
   address: 'Twin Palms Road, Lusaka, Zambia',
-  primaryPhone: '+260 981 504 322',
+  primaryPhone: '+260 766 439 896',
   secondaryPhone: '+260 977 000 111',
   email: 'hello@tailoredmanor.com',
-  whatsappNumber: '260981504322',
+  whatsappNumber: '260766439896',
   socialHandles: {
     instagram: '@tailoredmanor',
     facebook: 'Tailored Manor Zambia',
@@ -530,6 +537,13 @@ export const companySettings: CompanySettings = {
   ],
 };
 
+export const teamMembers: TeamMember[] = [
+  { id: 'team-jane', name: 'Jane Doe', role: 'Owner', email: 'jane@tailoredmanor.com', phone: '+260 977 000 111', initials: 'JD' },
+  { id: 'team-mwila', name: 'Mwila Banda', role: 'Designer', email: 'mwila@tailoredmanor.com', phone: '+260 977 000 112', initials: 'MB' },
+  { id: 'team-amos', name: 'Amos Phiri', role: 'Sales', email: 'amos@tailoredmanor.com', phone: '+260 977 000 113', initials: 'AP' },
+  { id: 'team-kelvin', name: 'Kelvin Zulu', role: 'Workshop', email: 'kelvin@tailoredmanor.com', phone: '+260 977 000 114', initials: 'KZ' },
+];
+
 export const adminCredentials = {
   email: 'owner@tailoredmanor.com',
   password: 'tailored2026',
@@ -541,3 +555,4 @@ export const navLinks = [
   { label: 'Our Work', href: '/portfolio' },
   { label: 'Contact', href: '/contact' },
 ];
+

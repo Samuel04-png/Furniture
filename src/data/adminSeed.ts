@@ -1,3 +1,4 @@
+import { asset } from './content';
 import type {
   AccountingRecord,
   Consultation,
@@ -7,14 +8,12 @@ import type {
   VisualiserSession,
 } from '../types';
 
-const pexels = (id: number, width = 1600) =>
-  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=${width}`;
-
 export const initialVisualiserSessions: VisualiserSession[] = [
   {
     id: 'vis-001',
-    roomPhotoUrl: pexels(7051278),
+    roomPhotoUrl: asset('full bedroom setup/Tailored to reflect your style and provide the comfort you deserve. Transforming a house (1).jpg'),
     roomName: 'Editorial Lounge',
+
     placedItems: [
       {
         id: 'placed-1',
@@ -37,8 +36,9 @@ export const initialVisualiserSessions: VisualiserSession[] = [
   },
   {
     id: 'vis-002',
-    roomPhotoUrl: pexels(32493215),
+    roomPhotoUrl: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (5).jpg'),
     roomName: 'Private Study',
+
     placedItems: [
       {
         id: 'placed-2',
@@ -83,8 +83,9 @@ export const initialEnquiries: Enquiry[] = [
       },
     ],
     visualiserSessionId: 'vis-001',
-    visualiserScreenshot: pexels(7051278),
+    visualiserScreenshot: asset('full bedroom setup/Tailored to reflect your style and provide the comfort you deserve. Transforming a house (1).jpg'),
   },
+
   {
     id: 'enq-002',
     type: 'configurator',
@@ -181,8 +182,12 @@ export const initialProductionOrders: ProductionOrder[] = [
     status: 'In Production',
     depositPaid: 36000,
     balanceDue: 36000,
-    progressPhotos: [pexels(6790932), pexels(35919730)],
+    progressPhotos: [
+      asset('bedroomfurniture/Crafted with durable, quality wood and finished with care.#sikalehome #bedroom #craftsmanship (1).jpg'),
+      asset('bedroomfurniture/Crafted with durable, quality wood and finished with care.#sikalehome #bedroom #craftsmanship (2).jpg')
+    ],
   },
+
   {
     id: 'ord-002',
     consultationId: 'con-001',
@@ -196,8 +201,9 @@ export const initialProductionOrders: ProductionOrder[] = [
     status: 'Materials Sourced',
     depositPaid: 42000,
     balanceDue: 42500,
-    progressPhotos: [pexels(5710873)],
+    progressPhotos: [asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (2).jpg')],
   },
+
 ];
 
 export const initialInventory: InventoryItem[] = [

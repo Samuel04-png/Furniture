@@ -4,6 +4,8 @@ import { ArrowRight } from 'lucide-react';
 import Button from './Button';
 import { cn, formatCurrency } from '../lib/utils';
 import type { DimensionSet, Product } from '../types';
+import Image from './Image';
+
 
 export function LogoMark({
   inverted = false,
@@ -114,14 +116,14 @@ export function PageHero({
 }) {
   return (
     <section className={cn('relative isolate overflow-hidden bg-tm-charcoal', heightClassName)}>
-      <img
+      <Image
         src={image}
         alt={title}
-        loading="eager"
-        decoding="async"
-        fetchPriority="high"
-        className="absolute inset-0 h-full w-full object-cover"
+        priority
+        fill
+        className="object-cover"
       />
+
       <div className="absolute inset-0 bg-[rgba(12,12,12,0.58)]" />
       <div className="tm-container relative flex h-full items-end py-28 md:py-36">
         <div className={cn('max-w-4xl', align === 'center' && 'mx-auto text-center')}>
@@ -151,14 +153,14 @@ export function ProductCard({ product, priority = false }: { product: Product; p
       to={`/collections/${product.slug}`}
       className={cn('group relative block overflow-hidden bg-tm-charcoal', priority ? 'min-h-[36rem]' : 'min-h-[30rem]')}
     >
-      <img
+      <Image
         src={priority ? product.heroImage : product.cardImage}
         alt={product.name}
-        loading={priority ? 'eager' : 'lazy'}
-        decoding="async"
-        fetchPriority={priority ? 'high' : 'auto'}
-        className="absolute inset-0 h-full w-full object-cover transition-transform duration-[400ms] ease-out group-hover:scale-[1.04]"
+        priority={priority}
+        fill
+        className="transition-transform duration-[400ms] ease-out group-hover:scale-[1.04]"
       />
+
       <div className="absolute inset-0 bg-[rgba(12,12,12,0.3)] opacity-0 transition duration-300 ease-out group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100" />
       <div className="absolute inset-x-0 bottom-0 p-6 opacity-100 transition duration-300 ease-out md:translate-y-3 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100">
         <p className="font-dm text-[11px] uppercase tracking-[0.2em] text-tm-gold">{product.category}</p>

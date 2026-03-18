@@ -1,5 +1,7 @@
 import { PageHero, SectionIntro } from '../components/primitives';
 import { useTailoredStore } from '../store/useTailoredStore';
+import { asset } from '../data/content';
+
 
 export default function About() {
   const team = useTailoredStore((state) => state.teamMembers);
@@ -10,8 +12,9 @@ export default function About() {
         eyebrow="Brand story"
         title="An interior experience studio, not a furniture shop"
         body="Tailored Manor is built around a simple idea: a room should not be furnished generically when it can be composed intentionally."
-        image="https://images.pexels.com/photos/8447892/pexels-photo-8447892.jpeg?auto=compress&cs=tinysrgb&w=1800"
+        image={asset('bedroomfurniture/Crafted with durable, quality wood and finished with care.#sikalehome #bedroom #craftsmanship (5).jpg')}
         heightClassName="min-h-[58svh]"
+
       />
       <section className="px-4 py-24 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">

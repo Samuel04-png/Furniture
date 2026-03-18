@@ -44,7 +44,8 @@ export function generateId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function createWhatsAppLink(message: string, number = '260981504322') {
+export function createWhatsAppLink(message: string, number = '260766439896') {
+
   return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }
 

@@ -2,6 +2,9 @@ import { useEffect, useMemo, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Upload } from 'lucide-react';
 import { DimensionDiagram, InputField, PageHero, SectionIntro, SelectField, TextAreaField } from '../components/primitives';
+import { asset } from '../data/content';
+import Image from '../components/Image';
+
 import { formatCurrency, prepareRoomImage } from '../lib/utils';
 import { useTailoredStore } from '../store/useTailoredStore';
 
@@ -88,8 +91,9 @@ export default function Configurator() {
           eyebrow="Quote request sent"
           title="We have received your request."
           body="One of the team will be in touch within 24 hours to confirm dimensions, finish direction, and final pricing."
-          image="https://images.pexels.com/photos/5974351/pexels-photo-5974351.jpeg?auto=compress&cs=tinysrgb&w=1800"
+          image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (1).jpg')}
           heightClassName="min-h-[52svh]"
+
         >
           <div className="flex flex-wrap gap-4">
             <Link to="/collections" className="rounded-full bg-tm-gold px-6 py-4 font-dm text-[0.78rem] uppercase tracking-[0.24em] text-tm-charcoal">
@@ -110,8 +114,9 @@ export default function Configurator() {
         eyebrow="Custom quote system"
         title="A guided configuration experience"
         body="This flow mirrors a luxury retail consultation, not a generic checkout. Every selection lands directly in the admin CRM."
-        image="https://images.pexels.com/photos/5710873/pexels-photo-5710873.jpeg?auto=compress&cs=tinysrgb&w=1800"
+        image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (2).jpg')}
         heightClassName="min-h-[48svh]"
+
       />
       <section className="px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
@@ -129,8 +134,9 @@ export default function Configurator() {
                         onClick={() => setDraft({ productId: product.id, isCustomDesign: false, customDesignImage: null, dimensions: product.sizePresets[0].dimensions, sizePresetId: product.sizePresets[0].id, materialId: product.materials[0], finish: product.finishes[0] })}
                         className={`overflow-hidden rounded-[1.8rem] border text-left transition ${draft.productId === product.id ? 'border-tm-gold shadow-[0_0_0_2px_rgba(184,147,90,0.18)]' : 'border-black/8'}`}
                       >
-                        <img src={product.cardImage} alt={product.name} className="h-56 w-full object-cover" />
+                        <Image src={product.cardImage} alt={product.name} className="h-56" />
                         <div className="p-5">
+
                           <p className="font-dm text-[0.68rem] uppercase tracking-[0.24em] text-tm-gold">{product.category}</p>
                           <h3 className="mt-3 font-cormorant text-[1.9rem] leading-none tracking-[-0.03em] text-tm-obsidian">{product.name}</h3>
                         </div>
@@ -145,9 +151,10 @@ export default function Configurator() {
                   </div>
                   {draft.customDesignImage ? (
                     <div className="mt-6 rounded-[1.6rem] border border-black/8 bg-[#f6f1e7] p-5">
-                      <img src={draft.customDesignImage} alt="Custom design" className="h-56 w-full rounded-[1.4rem] object-cover" />
+                      <Image src={draft.customDesignImage} alt="Custom design" className="h-56" />
                       <TextAreaField label="Describe your vision" rows={4} value={draft.customDesignNotes} onChange={(event) => setDraft({ isCustomDesign: true, customDesignNotes: event.target.value, productId: undefined })} className="mt-4" />
                     </div>
+
                   ) : null}
                 </div>
               ) : null}
@@ -163,8 +170,9 @@ export default function Configurator() {
                         onClick={() => setDraft({ materialId: material.id })}
                         className={`overflow-hidden rounded-[1.8rem] border text-left transition ${draft.materialId === material.id ? 'border-tm-gold shadow-[0_0_0_2px_rgba(184,147,90,0.18)]' : 'border-black/8'}`}
                       >
-                        <img src={material.grainImage} alt={material.name} className="h-44 w-full object-cover" />
+                        <Image src={material.grainImage} alt={material.name} className="h-44" />
                         <div className="p-5">
+
                           <h3 className="font-cormorant text-[1.9rem] leading-none tracking-[-0.03em] text-tm-obsidian">{material.name}</h3>
                           <p className="mt-3 font-dm text-sm leading-7 text-tm-warm-gray">{material.character}</p>
                         </div>
@@ -302,9 +310,10 @@ export default function Configurator() {
               <div className="rounded-[2rem] border border-black/8 bg-white p-6 shadow-[0_30px_90px_rgba(12,12,12,0.07)]">
                 <p className="font-dm text-[0.72rem] uppercase tracking-[0.24em] text-tm-warm-gray">Your configuration</p>
                 <div className="mt-5 overflow-hidden rounded-[1.6rem] bg-[#f6f1e7] p-4">
-                  {selectedProduct ? <img src={selectedProduct.cardImage} alt={selectedProduct.name} className="h-56 w-full rounded-[1.4rem] object-cover" /> : draft.customDesignImage ? <img src={draft.customDesignImage} alt="Custom design" className="h-56 w-full rounded-[1.4rem] object-cover" /> : <div className="flex h-56 items-center justify-center rounded-[1.4rem] border border-dashed border-black/10 font-dm text-sm text-tm-warm-gray">No piece selected yet</div>}
+                  {selectedProduct ? <Image src={selectedProduct.cardImage} alt={selectedProduct.name} className="h-56" /> : draft.customDesignImage ? <Image src={draft.customDesignImage} alt="Custom design" className="h-56" /> : <div className="flex h-56 items-center justify-center rounded-[1.4rem] border border-dashed border-black/10 font-dm text-sm text-tm-warm-gray">No piece selected yet</div>}
                   <h3 className="mt-5 font-cormorant text-[2rem] leading-none tracking-[-0.03em] text-tm-obsidian">{selectedProduct?.name || (draft.customDesignImage ? 'Bespoke Custom Design' : 'Select a piece')}</h3>
                 </div>
+
                 <div className="mt-6 space-y-4 font-dm text-sm text-tm-warm-gray">
                   <div className="flex items-center justify-between"><span>Material</span><span>{selectedMaterial?.name || '-'}</span></div>
                   <div className="flex items-center justify-between"><span>Finish</span><span>{draft.finish || '-'}</span></div>

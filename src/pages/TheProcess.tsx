@@ -1,6 +1,8 @@
 import { ArrowRight } from 'lucide-react';
 import Button from '../components/Button';
 import { PageHero, Reveal, SectionIntro } from '../components/primitives';
+import { asset } from '../data/content';
+
 
 const steps = [
   ['Consultation', 'We start with your room, your routines, and your design references.'],
@@ -16,8 +18,9 @@ export default function TheProcess() {
         eyebrow="The Tailored Manor method"
         title="Designed to feel personal from the first enquiry"
         body="The digital platform mirrors the studio process: discover, visualise, specify, then hand off to production without friction."
-        image="https://images.pexels.com/photos/7482636/pexels-photo-7482636.jpeg?auto=compress&cs=tinysrgb&w=1800"
+        image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (3).jpg')}
         heightClassName="min-h-[58svh]"
+
       />
       <section className="tm-section">
         <div className="tm-container max-w-6xl">

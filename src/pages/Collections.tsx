@@ -3,6 +3,8 @@ import { RotateCcw, Search } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHero, ProductCard, SectionIntro } from '../components/primitives';
 import { useTailoredStore } from '../store/useTailoredStore';
+import { asset } from '../data/content';
+
 
 const roomOptions = ['Living', 'Dining', 'Bedroom', 'Office', 'Outdoor'] as const;
 const materialOptions = ['mukwa', 'rosewood', 'teak', 'mahogany'] as const;
@@ -67,11 +69,13 @@ export default function Collections() {
         eyebrow="Curated catalogue"
         title="The Collection"
         body="Designed like an editorial selection rather than a retail grid. Filter by room, material, mood, or use case to find a starting point."
-        image="https://images.pexels.com/photos/12513485/pexels-photo-12513485.jpeg?auto=compress&cs=tinysrgb&w=1800"
+        image={asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (1).jpg')}
         heightClassName="min-h-[62svh]"
+
       />
 
-      <div className="z-40 border-b border-black/6 bg-[rgba(250,247,244,0.92)] px-4 py-5 backdrop-blur-xl sm:px-6 lg:sticky lg:top-[88px] lg:px-8">
+      <div className="z-40 border-b border-black/6 bg-[rgba(250,247,244,0.92)] px-4 py-5 backdrop-blur-xl sm:px-6 lg:px-8">
+
         <div className="mx-auto flex max-w-7xl flex-col gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <label className="relative block w-full max-w-xl">

@@ -3,7 +3,9 @@ import { MessageCircle } from 'lucide-react';
 import Button from '../components/Button';
 import { InputField, PageHero, SectionIntro, SelectField, TextAreaField } from '../components/primitives';
 import { createWhatsAppLink } from '../lib/utils';
+import { asset } from '../data/content';
 import { useTailoredStore } from '../store/useTailoredStore';
+
 
 export default function BookConsultation() {
   const createConsultationRequest = useTailoredStore((state) => state.createConsultationRequest);
@@ -40,8 +42,9 @@ export default function BookConsultation() {
         eyebrow="Consultation booking"
         title="Book a tailored design consultation"
         body="Bring your room dimensions, inspiration, or just the challenge. The team will guide you toward the right piece and finish direction."
-        image="https://images.pexels.com/photos/5974351/pexels-photo-5974351.jpeg?auto=compress&cs=tinysrgb&w=1800"
+        image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (1).jpg')}
         heightClassName="min-h-[56svh]"
+
       />
 
       <section className="tm-section">

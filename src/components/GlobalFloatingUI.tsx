@@ -36,7 +36,8 @@ export default function GlobalFloatingUI() {
       <ByteBerryWatermark className="bottom-3 left-4" />
 
       <a
-        href="https://wa.me/260981504322"
+        href="https://wa.me/260766439896"
+
         target="_blank"
         rel="noreferrer"
         aria-label="Contact Tailored Manor on WhatsApp"

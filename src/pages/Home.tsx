@@ -6,8 +6,10 @@ import { cn } from '../lib/utils';
 import Button from '../components/Button';
 import HeroSection from '../components/HeroSection';
 import { ProductCard, Reveal, SectionIntro } from '../components/primitives';
-import { featureProducts } from '../data/content';
+import { featureProducts, asset } from '../data/content';
 import { useTailoredStore } from '../store/useTailoredStore';
+import Image from '../components/Image';
+
 
 const trustSignals = [
   { label: 'Consult response', value: '24h', detail: 'Average first design follow-up' },
@@ -117,13 +119,16 @@ export default function Home() {
             {/* Left Column: Workshop Atmosphere & Parallax-feel Image */}
             <div className="relative">
               <Reveal className="group relative h-full min-h-[500px] overflow-hidden rounded-[3rem]">
-                <img
-                  src="https://images.pexels.com/photos/6790912/pexels-photo-6790912.jpeg?auto=compress&cs=tinysrgb&w=1600"
+                <Image
+                  src={asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (4).jpg')}
+
                   alt="Craftsman hands working on premium Zambian hardwood"
-                  className="h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105"
+                  fill
+                  className="transition-transform duration-1000 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-tm-obsidian/5" />
               </Reveal>
+
               
               {/* Floating Confidence Accent (Overlaps the image) */}
               <Reveal delay={0.2} className="tm-card-glass absolute -bottom-6 -right-6 z-20 hidden max-w-[280px] p-8 shadow-2xl xl:block">
@@ -181,14 +186,14 @@ export default function Home() {
             {materials.map((material, index) => (
               <Reveal key={material.id} delay={index * 0.05}>
                 <Link to={`/materials/${material.id}`} className="group relative block aspect-[3/4] overflow-hidden rounded-[2rem] bg-tm-charcoal">
-                  <img
+                  <Image
                     src={material.grainImage}
                     alt={material.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+                    fill
+                    className="transition-transform duration-700 ease-out group-hover:scale-110"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-tm-obsidian/80 via-tm-obsidian/20 to-transparent" />
+
                   <div className="absolute inset-x-0 bottom-0 p-8">
                     <p className="font-dm text-[9px] uppercase tracking-[0.3em] text-tm-gold">{material.origin}</p>
                     <h3 className="mt-3 font-cormorant text-2xl font-light tracking-tight text-tm-cream">{material.name}</h3>
@@ -278,9 +283,10 @@ export default function Home() {
           transition={{ duration: 1.2 }}
           className="absolute inset-0"
         >
-          <img src={spotlightTestimonial.image} alt={spotlightTestimonial.location} className="h-full w-full object-cover" />
+          <Image src={spotlightTestimonial.image} alt={spotlightTestimonial.location} fill />
           <div className="absolute inset-0 bg-gradient-to-b from-tm-obsidian/40 via-tm-obsidian/70 to-tm-obsidian/90" />
         </motion.div>
+
         
         <div className="tm-container relative flex h-full items-center">
           <div className="max-w-3xl">
