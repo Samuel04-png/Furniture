@@ -48,7 +48,8 @@ export default function Contact() {
         eyebrow="Get in touch"
         title="Visit the studio or start the conversation online"
         body="The consultation can begin through WhatsApp, the room visualiser, or a direct message here."
-        image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (5).jpg')}
+        image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (4).jpg')}
+
         heightClassName="min-h-[56svh]"
 
       />

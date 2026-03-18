@@ -356,9 +356,11 @@ export const products: Product[] = [
     tags: ['entry', 'corridor', 'statement'],
     overlayKind: 'table',
     processGallery: [
-      { title: 'Edge Profile', caption: 'The profile is softened to read elegant from every angle in circulation spaces.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (5).jpg') },
+      { title: 'Edge Profile', caption: 'The profile is softened to read elegant from every angle in circulation spaces.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (7).jpg') },
+
       { title: 'Shelf Setting', caption: 'Spacing is adapted to styling objects, books, or hidden baskets.', image: asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (3).jpg') },
-      { title: 'Tone Finish', caption: 'The finish is matched to the adjoining floor and wall palette.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (6).jpg') },
+      { title: 'Tone Finish', caption: 'The finish is matched to the adjoining floor and wall palette.', image: asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (8).jpg') },
+
     ],
   },
   {
@@ -437,7 +439,8 @@ export const testimonials: Testimonial[] = [
       'The desk feels like a proper piece of architecture. It brought focus and calm to the office immediately.',
     clientName: 'Tendai',
     location: 'Lusaka Studio Office',
-    image: asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (6).jpg'),
+    image: asset('full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (1).jpg'),
+
   },
 ];
 
