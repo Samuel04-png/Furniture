@@ -17,6 +17,16 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+      VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+      VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+      VITE_FUNCTIONS_REGION: ${{ secrets.VITE_FUNCTIONS_REGION || 'africa-south1' }}
+      VITE_SMART_PLACEMENT_ENDPOINT: ${{ secrets.VITE_SMART_PLACEMENT_ENDPOINT || '/api/visualiser/smart-placement' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,11 +39,14 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      - name: Validate required Firebase build secrets
+        run: |
+          node -e "const required=['VITE_FIREBASE_API_KEY','VITE_FIREBASE_AUTH_DOMAIN','VITE_FIREBASE_PROJECT_ID','VITE_FIREBASE_STORAGE_BUCKET','VITE_FIREBASE_MESSAGING_SENDER_ID','VITE_FIREBASE_APP_ID','VITE_FIREBASE_MEASUREMENT_ID']; const missing=required.filter((name)=>!process.env[name]); if(missing.length){ throw new Error('Missing GitHub Actions secrets: '+missing.join(', ')); } console.log('Firebase build secrets are present.');"
       - name: Build
         run: npm run build
       - name: Validate built asset references
         run: |
-          node -e "const fs=require('fs'); const path=require('path'); const htmlPath=path.join(process.cwd(),'dist','index.html'); const html=fs.readFileSync(htmlPath,'utf8'); const refs=[...html.matchAll(/(?:src|href)=\"(\/assets\/[^\"]+)\"/g)].map((match)=>match[1]); if(!refs.length){ throw new Error('No built asset references found in dist/index.html'); } const missing=refs.filter((ref)=>!fs.existsSync(path.join(process.cwd(),'dist',ref.replace(/^\//,'')))); if(missing.length){ throw new Error('Missing built assets: '+missing.join(', ')); } console.log('Validated asset references:', refs.join(', '));"
+          node -e "const fs=require('fs'); const path=require('path'); const htmlPath=path.join(process.cwd(),'dist','index.html'); const html=fs.readFileSync(htmlPath,'utf8'); if(html.includes('/src/main.tsx')){ throw new Error('dist/index.html still references /src/main.tsx instead of built assets'); } const refs=[...html.matchAll(/(?:src|href)=\"(\/assets\/[^\"]+)\"/g)].map((match)=>match[1]); if(!refs.length){ throw new Error('No built asset references found in dist/index.html'); } const missing=refs.filter((ref)=>!fs.existsSync(path.join(process.cwd(),'dist',ref.replace(/^\//,'')))); if(missing.length){ throw new Error('Missing built assets: '+missing.join(', ')); } console.log('Validated asset references:', refs.join(', '));"
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
