@@ -4,15 +4,16 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
+import { firebaseWebConfig } from '../config/firebase';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseWebConfig.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseWebConfig.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseWebConfig.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseWebConfig.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseWebConfig.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseWebConfig.appId,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || firebaseWebConfig.measurementId,
 };
 
 const missingEnv = Object.entries(firebaseConfig)
@@ -24,7 +25,7 @@ if (missingEnv.length) {
 }
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-const functionsRegion = import.meta.env.VITE_FUNCTIONS_REGION || 'africa-south1';
+const functionsRegion = import.meta.env.VITE_FUNCTIONS_REGION || firebaseWebConfig.functionsRegion;
 
 export const db = getFirestore(app);
 export const storage = getStorage(app);
@@ -33,6 +34,7 @@ export const functions = getFunctions(app, functionsRegion);
 
 export async function initAnalytics() {
   if (typeof window === 'undefined') return null;
+  if (!firebaseConfig.measurementId) return null;
   if (await isSupported()) {
     return getAnalytics(app);
   }
