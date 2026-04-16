@@ -20,15 +20,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Build
         run: npm run build
+      - name: Validate built asset references
+        run: |
+          node -e "const fs=require('fs'); const path=require('path'); const htmlPath=path.join(process.cwd(),'dist','index.html'); const html=fs.readFileSync(htmlPath,'utf8'); const refs=[...html.matchAll(/(?:src|href)=\"(\/assets\/[^\"]+)\"/g)].map((match)=>match[1]); if(!refs.length){ throw new Error('No built asset references found in dist/index.html'); } const missing=refs.filter((ref)=>!fs.existsSync(path.join(process.cwd(),'dist',ref.replace(/^\//,'')))); if(missing.length){ throw new Error('Missing built assets: '+missing.join(', ')); } console.log('Validated asset references:', refs.join(', '));"
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
