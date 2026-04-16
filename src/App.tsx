@@ -31,9 +31,12 @@ function ScrollToTop() {
 
 function AppShell() {
   const location = useLocation();
-  const isAdmin = location.pathname.startsWith('/admin');
+  const isAdminRoute = location.pathname.startsWith('/admin');
   const loadProducts = useTailoredStore((state) => state.loadProducts);
   const initAuth = useTailoredStore((state) => state.initAuth);
+  const authReady = useTailoredStore((state) => state.authReady);
+  const isAdminAuthenticated = useTailoredStore((state) => state.isAdminAuthenticated);
+  const isAdminLocked = isAdminRoute && authReady && isAdminAuthenticated;
 
   useEffect(() => {
     initAuth();
@@ -52,22 +55,26 @@ function AppShell() {
     const body = document.body;
     const root = document.getElementById('root');
 
-    html.classList.toggle('tm-admin-lock', isAdmin);
-    body.classList.toggle('tm-admin-lock', isAdmin);
-    root?.classList.toggle('tm-admin-lock', isAdmin);
+    html.classList.toggle('tm-admin-lock', isAdminLocked);
+    body.classList.toggle('tm-admin-lock', isAdminLocked);
+    root?.classList.toggle('tm-admin-lock', isAdminLocked);
 
     return () => {
       html.classList.remove('tm-admin-lock');
       body.classList.remove('tm-admin-lock');
       root?.classList.remove('tm-admin-lock');
     };
-  }, [isAdmin]);
+  }, [isAdminLocked]);
 
   return (
-    <div className={cn(isAdmin ? 'h-screen overflow-hidden bg-[#ece3d6] text-tm-obsidian' : 'min-h-screen bg-tm-off-white text-tm-obsidian')}>
+    <div
+      className={cn(
+        isAdminLocked ? 'h-screen overflow-hidden bg-[#ece3d6] text-tm-obsidian' : 'min-h-screen bg-tm-off-white text-tm-obsidian',
+      )}
+    >
       <ScrollToTop />
-      {!isAdmin && <Navbar />}
-      <main className={cn(isAdmin && 'h-full overflow-hidden')}>
+      {!isAdminRoute && <Navbar />}
+      <main className={cn(isAdminLocked && 'h-full overflow-hidden')}>
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Home />} />
@@ -94,8 +101,8 @@ function AppShell() {
           </Routes>
         </Suspense>
       </main>
-      {!isAdmin && <Footer />}
-      {!isAdmin && <GlobalFloatingUI />}
+      {!isAdminRoute && <Footer />}
+      {!isAdminRoute && <GlobalFloatingUI />}
     </div>
   );
 }

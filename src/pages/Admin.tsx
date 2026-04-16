@@ -6,7 +6,7 @@ import { cn } from '../lib/utils';
 import { canAccessWorkspace, type AdminWorkspace } from '../lib/adminAccess';
 import { useTailoredStore } from '../store/useTailoredStore';
 import type { TeamMember } from '../types';
-import { AdminLoginPage } from './admin/AdminModules';
+import { AdminAuthLoadingPage, AdminLoginPage } from './admin/AdminModules';
 import { CommandCenterPage } from './admin/workspaces/CommandCenterPage';
 import { FinanceWorkspacePage } from './admin/workspaces/FinanceWorkspacePage';
 import { JobsWorkspacePage } from './admin/workspaces/JobsWorkspacePage';
@@ -130,7 +130,7 @@ export default function Admin() {
     { label: 'Open product library', href: '/admin/products/library' },
   ], []);
 
-  if (!authReady) return <div className="flex min-h-screen items-center justify-center bg-[#f5ede2] px-6"><div className="rounded-[1.6rem] border border-black/10 bg-white px-6 py-5 font-dm text-[0.72rem] uppercase tracking-[0.24em] text-tm-warm-gray">Loading admin workspace...</div></div>;
+  if (!authReady) return <AdminAuthLoadingPage />;
   if (location.pathname === '/admin') return authenticated ? <Navigate to="/admin/command-center" replace /> : <AdminLoginPage />;
   if (!authenticated) return <Navigate to="/admin" replace />;
 
