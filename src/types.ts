@@ -8,6 +8,7 @@ export type ProductCategory =
   | 'Outdoor';
 export type StyleMood = 'Contemporary' | 'Traditional' | 'Organic' | 'Minimalist';
 export type ProductStatus = 'Live' | 'Draft' | 'Hidden';
+export type ProductVisibility = 'public' | 'showroom' | 'internal';
 export type EnquirySource = 'visualiser' | 'configurator' | 'consultation' | 'direct';
 export type EnquiryStatus =
   | 'New'
@@ -25,9 +26,41 @@ export type ProductionStage =
   | 'Quality Check'
   | 'Ready for Delivery'
   | 'Delivered';
-export type TeamRole = 'Owner' | 'Designer' | 'Sales' | 'Workshop';
+export type TeamRole =
+  | 'Owner'
+  | 'Admin'
+  | 'Sales'
+  | 'Designer'
+  | 'Production Manager'
+  | 'Inventory Manager'
+  | 'Procurement'
+  | 'Accountant'
+  | 'Read Only'
+  | 'Operations'
+  | 'Workshop'
+  | 'Production'
+  | 'Inventory';
+export type TeamStatus = 'Invited' | 'Active' | 'Disabled';
 export type AccountingType = 'Invoice' | 'Expense' | 'Deposit' | 'Purchase Order';
 export type AccountingStatus = 'Draft' | 'Issued' | 'Paid' | 'Overdue';
+export type AutomationStatus = 'Active' | 'Paused' | 'Draft';
+export type AdminWorkspaceKey =
+  | 'command-center'
+  | 'pipeline'
+  | 'jobs'
+  | 'materials'
+  | 'finance'
+  | 'products'
+  | 'system';
+export type AutomationEventType =
+  | 'lead.created'
+  | 'lead.consultation_scheduled'
+  | 'lead.quote_sent'
+  | 'consultation.scheduled'
+  | 'finance.overdue'
+  | 'inventory.low_stock'
+  | 'job.stage_changed';
+export type NotificationSeverity = 'info' | 'success' | 'warning' | 'danger';
 export type OverlayKind =
   | 'sofa'
   | 'table'
@@ -37,13 +70,20 @@ export type OverlayKind =
   | 'desk'
   | 'outdoor';
 
+export interface AuditFields {
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+}
+
 export interface DimensionSet {
   width: number;
   depth: number;
   height: number;
 }
 
-export interface Material {
+export interface Material extends AuditFields {
   id: string;
   name: string;
   origin: string;
@@ -51,9 +91,12 @@ export interface Material {
   character: string;
   bestFor: string[];
   grainImage: string;
+  grainImagePath?: string | null;
   tone: string;
   accentTone: string;
   availableFinishes: string[];
+  sortOrder?: number;
+  visibleOnSite?: boolean;
 }
 
 export interface UpholsterySwatch {
@@ -69,7 +112,21 @@ export interface ProcessImage {
   image: string;
 }
 
-export interface Product {
+export interface ProductWebsiteSettings {
+  isPublished: boolean;
+  visibility: ProductVisibility;
+  featured: boolean;
+  featuredOrder?: number;
+  storeTitle?: string;
+  storeSummary?: string;
+  storeDescription?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  publishedAt?: string | null;
+  publishedBy?: string | null;
+}
+
+export interface Product extends AuditFields {
   id: string;
   slug: string;
   name: string;
@@ -99,46 +156,84 @@ export interface Product {
   overlayKind: OverlayKind;
   silhouetteTone?: string;
   processGallery: ProcessImage[];
+  website?: ProductWebsiteSettings;
+  internalNotes?: string;
 }
 
-export interface SampleRoom {
+export interface PublishedProduct extends Product {
+  website: ProductWebsiteSettings & {
+    isPublished: true;
+    visibility: 'public';
+  };
+}
+
+export interface ProductMedia extends AuditFields {
+  id: string;
+  productId: string;
+  kind: 'hero' | 'card' | 'gallery' | 'process';
+  label?: string;
+  path: string;
+  url: string;
+  order: number;
+  contentType?: string;
+  sizeBytes?: number;
+}
+
+export interface SampleRoom extends AuditFields {
   id: string;
   name: string;
   image: string;
+  imagePath?: string | null;
   spaceType: RoomCategory;
+  visibleOnSite?: boolean;
+  sortOrder?: number;
 }
 
-export interface Testimonial {
+export interface Testimonial extends AuditFields {
   id: string;
   quote: string;
   clientName: string;
   location: string;
   image: string;
+  imagePath?: string | null;
+  visibleOnSite?: boolean;
+  sortOrder?: number;
 }
 
-export interface PortfolioProject {
+export interface PortfolioProject extends AuditFields {
   id: string;
   slug: string;
   title: string;
   location: string;
   category: string;
   heroImage: string;
+  heroImagePath?: string | null;
   gallery: string[];
+  galleryPaths?: string[];
   summary: string;
   challenge: string;
   solution: string;
   materials: string[];
   metrics: string[];
   testimonial: string;
+  visibleOnSite?: boolean;
+  sortOrder?: number;
 }
 
-export interface TeamMember {
+export interface TeamMember extends AuditFields {
   id: string;
+  uid?: string;
   name: string;
   role: TeamRole;
   email: string;
   phone: string;
   initials: string;
+  status?: TeamStatus;
+  avatarUrl?: string;
+  avatarPath?: string | null;
+  bio?: string;
+  isPublicProfile?: boolean;
+  lastLoginAt?: string;
 }
 
 export interface EnquiryNote {
@@ -162,8 +257,10 @@ export interface ConfigurationData {
   };
   notes?: string;
   customDesignImage?: string | null;
+  customDesignImagePath?: string | null;
   customDesignNotes?: string;
   uploadedSpacePhoto?: string | null;
+  uploadedSpacePhotoPath?: string | null;
   sizeLabel?: string;
 }
 
@@ -181,15 +278,17 @@ export interface PlacedVisualiserItem {
 
 export interface VisualiserDraft {
   roomPhotoUrl: string | null;
+  roomPhotoPath?: string | null;
   roomName: string;
   items: PlacedVisualiserItem[];
   gridEnabled: boolean;
   zoom: number;
 }
 
-export interface VisualiserSession {
+export interface VisualiserSession extends AuditFields {
   id: string;
   roomPhotoUrl: string;
+  roomPhotoPath?: string | null;
   roomName: string;
   placedItems: PlacedVisualiserItem[];
   submittedAt: string;
@@ -198,9 +297,10 @@ export interface VisualiserSession {
   phone?: string;
   email?: string;
   assignedTo?: string;
+  enquiryId?: string;
 }
 
-export interface Enquiry {
+export interface Enquiry extends AuditFields {
   id: string;
   type: EnquirySource;
   clientName: string;
@@ -219,7 +319,7 @@ export interface Enquiry {
   preferredContactTime?: string;
 }
 
-export interface Consultation {
+export interface Consultation extends AuditFields {
   id: string;
   enquiryId?: string;
   clientName: string;
@@ -233,7 +333,7 @@ export interface Consultation {
   visualiserSessionId?: string;
 }
 
-export interface ProductionOrder {
+export interface ProductionOrder extends AuditFields {
   id: string;
   consultationId?: string;
   clientName: string;
@@ -249,7 +349,7 @@ export interface ProductionOrder {
   progressPhotos: string[];
 }
 
-export interface InventoryItem {
+export interface InventoryItem extends AuditFields {
   id: string;
   name: string;
   category: 'Hardwood' | 'Fabric' | 'Hardware' | 'Finishing';
@@ -261,7 +361,7 @@ export interface InventoryItem {
   eta: string;
 }
 
-export interface AccountingRecord {
+export interface AccountingRecord extends AuditFields {
   id: string;
   type: AccountingType;
   title: string;
@@ -270,15 +370,50 @@ export interface AccountingRecord {
   status: AccountingStatus;
   dueDate: string;
   issuedDate: string;
+  attachmentUrl?: string;
+  attachmentPath?: string;
 }
 
-export interface NotificationTemplate {
+export interface NotificationTemplate extends AuditFields {
   id: string;
   label: string;
   body: string;
+  category?: string;
+  eventType?: AutomationEventType;
 }
 
-export interface CompanySettings {
+export interface AutomationRule extends AuditFields {
+  id: string;
+  title: string;
+  detail: string;
+  state: AutomationStatus;
+  touchpoints: string[];
+  eventType?: AutomationEventType;
+  workspace?: AdminWorkspaceKey;
+  templateId?: string | null;
+  targetRoles?: TeamRole[];
+  severity?: NotificationSeverity;
+}
+
+export interface NotificationRecord extends AuditFields {
+  id: string;
+  automationId?: string | null;
+  automationTitle?: string | null;
+  templateId?: string | null;
+  eventType: AutomationEventType;
+  workspace: AdminWorkspaceKey;
+  relatedRecordId?: string | null;
+  relatedPath?: string | null;
+  title: string;
+  body: string;
+  severity: NotificationSeverity;
+  targetRoles: TeamRole[];
+  readBy: string[];
+  triggeredAt: string;
+  metadata?: Record<string, string | number | boolean | null>;
+}
+
+export interface CompanySettings extends AuditFields {
   companyName: string;
   address: string;
   primaryPhone: string;
@@ -301,6 +436,7 @@ export interface ConfiguratorDraft {
   productId?: string;
   isCustomDesign: boolean;
   customDesignImage: string | null;
+  customDesignImagePath?: string | null;
   customDesignNotes: string;
   materialId?: string;
   finish?: string;
@@ -319,4 +455,5 @@ export interface ConfiguratorDraft {
   email: string;
   preferredContactTime: string;
   uploadedSpacePhoto: string | null;
+  uploadedSpacePhotoPath?: string | null;
 }

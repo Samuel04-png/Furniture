@@ -18,3 +18,13 @@ View your app in AI Studio: https://ai.studio/apps/cf1e9a14-2cb8-4274-87f0-f910c
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Firebase Setup (Required for Admin + Listings)
+
+1. In Firebase Console, enable **Authentication** (Email/Password).
+2. Create an admin account that matches the email/password you use on the admin login screen.
+3. Enable **Firestore** and **Storage**.
+4. Deploy rules:
+   `firebase deploy --only firestore:rules,storage`
+
+The admin panel uses Firebase Auth to sign in, Firestore to store products, and Storage for images. Public pages read products from Firestore; admin actions require an authenticated Firebase user.

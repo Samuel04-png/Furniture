@@ -6,7 +6,7 @@ import { cn } from '../lib/utils';
 import Button from '../components/Button';
 import HeroSection from '../components/HeroSection';
 import { ProductCard, Reveal, SectionIntro } from '../components/primitives';
-import { featureProducts, asset } from '../data/content';
+import { asset } from '../config/site';
 import { useTailoredStore } from '../store/useTailoredStore';
 import Image from '../components/Image';
 
@@ -55,10 +55,16 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [testimonials.length]);
 
-  const featuredProducts = useMemo(
-    () => products.filter((product) => featureProducts.includes(product.slug)),
-    [products],
-  );
+  const featuredProducts = useMemo(() => {
+    const explicitlyFeatured = products
+      .filter((product) => product.website?.featured)
+      .sort(
+        (left, right) =>
+          (left.website?.featuredOrder ?? 999) - (right.website?.featuredOrder ?? 999),
+      );
+
+    return explicitlyFeatured.length ? explicitlyFeatured : products.slice(0, 4);
+  }, [products]);
   const heroProducts = useMemo(() => featuredProducts.slice(0, 4), [featuredProducts]);
   const spotlightTestimonial = testimonials[testimonialIndex];
 
@@ -275,7 +281,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="relative h-[80svh] min-h-[500px] overflow-hidden bg-tm-charcoal text-tm-cream">
+      {spotlightTestimonial ? <section className="relative h-[80svh] min-h-[500px] overflow-hidden bg-tm-charcoal text-tm-cream">
         <motion.div 
           key={spotlightTestimonial.id}
           initial={{ opacity: 0, scale: 1.05 }}
@@ -323,7 +329,7 @@ export default function Home() {
             </Reveal>
           </div>
         </div>
-      </section>
+      </section> : null}
 
       {/* Our Promise section */}
       <section className="tm-section bg-tm-off-white">

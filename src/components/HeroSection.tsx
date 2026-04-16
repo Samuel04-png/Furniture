@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Button from './Button';
 import { Reveal, WordmarkLockup } from './primitives';
 
-import { asset } from '../data/content';
+import { asset } from '../config/site';
 
 function TypewriterHeadline() {
   const lines = ['Your Space.', 'Masterfully Tailored.'];
@@ -114,4 +114,3 @@ export default function HeroSection() {
     </section>
   );
 }
-

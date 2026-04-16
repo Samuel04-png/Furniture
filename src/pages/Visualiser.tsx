@@ -252,14 +252,19 @@ export default function Visualiser() {
           <form
             onSubmit={(event: FormEvent) => {
               event.preventDefault();
-              submitVisualiser({
+              setError('');
+              void submitVisualiser({
                 clientName: form.clientName,
                 phone: form.phone,
                 email: form.email,
                 preferredDateTime: form.date && form.time ? `${form.date}T${form.time}:00.000Z` : undefined,
                 notes: form.notes,
+              }).then(() => {
+                navigate('/book-consultation');
+              }).catch((submissionError) => {
+                console.error(submissionError);
+                setError('We could not submit this visualiser layout right now. Please try again.');
               });
-              navigate('/book-consultation');
             }}
             className="rounded-[2rem] border border-black/8 bg-white p-8 shadow-[0_30px_90px_rgba(12,12,12,0.08)]"
           >
@@ -273,6 +278,7 @@ export default function Visualiser() {
                 <SelectField label="Preferred time" value={form.time} onChange={(event) => setForm((current) => ({ ...current, time: event.target.value }))}><option value="">No preference</option><option value="09:00">09:00</option><option value="11:00">11:00</option><option value="14:00">14:00</option><option value="16:00">16:00</option></SelectField>
               </div>
               <TextAreaField label="Notes" rows={5} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
+              {error ? <p className="rounded-[1rem] border border-tm-error/20 bg-tm-error/10 px-4 py-3 font-dm text-sm text-tm-error">{error}</p> : null}
               <button type="submit" className="w-full rounded-full bg-tm-gold px-6 py-4 font-dm text-[0.78rem] uppercase tracking-[0.24em] text-tm-charcoal">Send my visualiser layout</button>
               <a href={whatsapp} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center gap-2 rounded-full border border-tm-gold px-6 py-4 font-dm text-[0.78rem] uppercase tracking-[0.24em] text-tm-gold"><Camera className="h-4 w-4" />Send on WhatsApp</a>
             </div>

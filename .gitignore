@@ -2,6 +2,8 @@ node_modules/
 build/
 dist/
 coverage/
+.firebase/
+functions/functions.yaml\ 
 .DS_Store
 *.log
 .env*

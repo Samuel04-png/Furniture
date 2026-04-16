@@ -3,7 +3,7 @@ import { ArrowRight } from 'lucide-react';
 import Button from '../components/Button';
 import { PageHero, Reveal, SectionIntro } from '../components/primitives';
 import { useTailoredStore } from '../store/useTailoredStore';
-import { asset } from '../data/content';
+import { asset } from '../config/site';
 import Image from '../components/Image';
 
 

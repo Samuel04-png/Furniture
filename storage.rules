@@ -1,0 +1,52 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn() && request.auth.token.role != null
+        ? request.auth.token.role
+        : 'Read Only';
+    }
+
+    function roleIn(roles) {
+      return signedIn() && role() in roles;
+    }
+
+    function validImageUpload() {
+      return request.resource != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /products/{productId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if roleIn(['Owner', 'Admin', 'Sales', 'Designer']);
+    }
+
+    match /website/materials/{recordId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if validImageUpload() && roleIn(['Owner', 'Admin', 'Inventory Manager', 'Procurement']);
+    }
+
+    match /website/{folder}/{recordId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if validImageUpload() && roleIn(['Owner', 'Admin']);
+    }
+
+    match /submissions/{folder}/{recordId}/{allPaths=**} {
+      allow read: if roleIn(['Owner', 'Admin', 'Sales', 'Designer', 'Production Manager', 'Inventory Manager', 'Procurement', 'Accountant']);
+      allow write: if (folder == 'visualiser' || folder == 'configurator') && validImageUpload();
+    }
+
+    match /accounting/{recordId}/{allPaths=**} {
+      allow read, write: if roleIn(['Owner', 'Admin', 'Accountant']);
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

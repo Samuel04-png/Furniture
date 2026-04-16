@@ -32,6 +32,14 @@
   color-scheme: light;
 }
 
+html.tm-admin-lock,
+body.tm-admin-lock,
+#root.tm-admin-lock {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -99,6 +107,30 @@ img {
 
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+.tm-sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(184, 147, 90, 0.55) rgba(255, 255, 255, 0.03);
+  scrollbar-gutter: stable;
+}
+
+.tm-sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tm-sidebar-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 999px;
+}
+
+.tm-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(198, 160, 104, 0.82), rgba(160, 126, 80, 0.62));
+  border-radius: 999px;
+}
+
+.tm-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(206, 169, 111, 0.92), rgba(168, 132, 84, 0.74));
 }
 
 /* Fluid Typography & Utilities */

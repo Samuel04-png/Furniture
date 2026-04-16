@@ -1,7 +1,7 @@
 import { ArrowRight } from 'lucide-react';
 import Button from '../components/Button';
 import { PageHero, Reveal, SectionIntro } from '../components/primitives';
-import { asset } from '../data/content';
+import { asset } from '../config/site';
 
 
 const steps = [

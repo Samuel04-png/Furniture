@@ -1,0 +1,673 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.auditFinanceWrites = exports.auditEnquiryWrites = exports.notifyJobAutomations = exports.notifyInventoryAutomations = exports.notifyFinanceAutomations = exports.notifyConsultationAutomations = exports.notifyEnquiryAutomations = exports.cleanupDeletedTeamProfileFiles = exports.cleanupDeletedPortfolioFiles = exports.cleanupDeletedTestimonialFiles = exports.cleanupDeletedSampleRoomFiles = exports.cleanupDeletedMaterialFiles = exports.cleanupDeletedProductFiles = exports.syncPublishedProduct = exports.syncTeamClaims = exports.markAllNotificationsRead = exports.markNotificationRead = exports.disableTeamMember = exports.backfillPublishedProducts = exports.createTeamMember = void 0;
+const app_1 = require("firebase-admin/app");
+const https_1 = require("firebase-functions/v2/https");
+const firestore_1 = require("firebase-functions/v2/firestore");
+const firebase_functions_1 = require("firebase-functions");
+const storageBucket = process.env.FIREBASE_STORAGE_BUCKET ||
+    process.env.STORAGE_BUCKET ||
+    'tailored-manor.firebasestorage.app';
+(0, app_1.initializeApp)({
+    storageBucket,
+});
+function createLazyProxy(factory) {
+    return new Proxy({}, {
+        get(_target, property) {
+            const instance = factory();
+            const value = Reflect.get(instance, property);
+            return typeof value === 'function' ? value.bind(instance) : value;
+        },
+    });
+}
+function fieldValue() {
+    return require('firebase-admin/firestore').FieldValue;
+}
+const auth = createLazyProxy(() => require('firebase-admin/auth').getAuth());
+const db = createLazyProxy(() => require('firebase-admin/firestore').getFirestore());
+const bucket = createLazyProxy(() => require('firebase-admin/storage').getStorage().bucket(storageBucket));
+const region = process.env.FUNCTIONS_REGION || 'africa-south1';
+const automationEventConfig = {
+    'lead.created': {
+        workspace: 'pipeline',
+        severity: 'info',
+        targetRoles: ['Owner', 'Admin', 'Sales'],
+        relatedPath: '/admin/pipeline/leads',
+    },
+    'lead.consultation_scheduled': {
+        workspace: 'pipeline',
+        severity: 'success',
+        targetRoles: ['Owner', 'Admin', 'Sales', 'Designer'],
+        relatedPath: '/admin/pipeline/consultations',
+    },
+    'lead.quote_sent': {
+        workspace: 'pipeline',
+        severity: 'warning',
+        targetRoles: ['Owner', 'Admin', 'Sales'],
+        relatedPath: '/admin/pipeline/quotes',
+    },
+    'consultation.scheduled': {
+        workspace: 'pipeline',
+        severity: 'success',
+        targetRoles: ['Owner', 'Admin', 'Sales', 'Designer'],
+        relatedPath: '/admin/pipeline/consultations',
+    },
+    'finance.overdue': {
+        workspace: 'finance',
+        severity: 'danger',
+        targetRoles: ['Owner', 'Admin', 'Accountant'],
+        relatedPath: '/admin/finance/invoices',
+    },
+    'inventory.low_stock': {
+        workspace: 'materials',
+        severity: 'warning',
+        targetRoles: ['Owner', 'Admin', 'Inventory Manager', 'Procurement'],
+        relatedPath: '/admin/materials/stock',
+    },
+    'job.stage_changed': {
+        workspace: 'jobs',
+        severity: 'info',
+        targetRoles: ['Owner', 'Admin', 'Production Manager'],
+        relatedPath: '/admin/jobs/board',
+    },
+};
+function slugify(value) {
+    return value
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+}
+function normalizeRole(role) {
+    const value = String(role || '').trim();
+    const canonicalRoles = {
+        owner: 'Owner',
+        admin: 'Admin',
+        sales: 'Sales',
+        designer: 'Designer',
+        'production manager': 'Production Manager',
+        'inventory manager': 'Inventory Manager',
+        procurement: 'Procurement',
+        accountant: 'Accountant',
+        'read only': 'Read Only',
+        readonly: 'Read Only',
+    };
+    return canonicalRoles[value.toLowerCase()] || 'Read Only';
+}
+function createInitials(name) {
+    return (name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() ?? '')
+        .join('') || 'TM');
+}
+function randomPassword() {
+    return `TM-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36).slice(-4)}`;
+}
+function requireAdmin(authData) {
+    if (!authData) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication is required.');
+    }
+    const role = normalizeRole(authData.token?.role);
+    if (role !== 'Owner' && role !== 'Admin') {
+        throw new https_1.HttpsError('permission-denied', 'Only owners and admins can perform this action.');
+    }
+    return role;
+}
+function requireSignedIn(authData) {
+    if (!authData?.uid) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication is required.');
+    }
+    return {
+        uid: authData.uid,
+        role: normalizeRole(authData.token?.role),
+    };
+}
+async function writeAuditLog(module, recordId, action, payload) {
+    await db.collection('auditLogs').add({
+        module,
+        recordId,
+        action,
+        payload,
+        createdAt: fieldValue().serverTimestamp(),
+    });
+}
+function renderTemplate(text, context) {
+    return text.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
+        const value = context[key];
+        return value === undefined || value === null ? '' : String(value);
+    });
+}
+function normalizeRoleList(input, fallback) {
+    const values = Array.isArray(input)
+        ? input.map((entry) => normalizeRole(String(entry || '')))
+        : fallback;
+    const normalized = Array.from(new Set(values.filter(Boolean)));
+    return normalized.length ? normalized : fallback;
+}
+function stripUndefinedValues(value) {
+    return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
+}
+async function createAutomationNotifications(options) {
+    const event = automationEventConfig[options.eventType];
+    const rulesSnapshot = await db
+        .collection('automations')
+        .where('state', '==', 'Active')
+        .where('eventType', '==', options.eventType)
+        .get();
+    if (rulesSnapshot.empty) {
+        return 0;
+    }
+    const templateCache = new Map();
+    let createdCount = 0;
+    for (const ruleDoc of rulesSnapshot.docs) {
+        const rule = ruleDoc.data();
+        const templateId = typeof rule.templateId === 'string' ? rule.templateId : null;
+        let template = null;
+        if (templateId) {
+            if (!templateCache.has(templateId)) {
+                const templateDoc = await db.collection('templates').doc(templateId).get();
+                templateCache.set(templateId, templateDoc.exists ? templateDoc.data() ?? null : null);
+            }
+            template = templateCache.get(templateId) ?? null;
+        }
+        const notificationId = `${ruleDoc.id}__${options.recordId}__${slugify(options.eventKey)}`;
+        const notificationRef = db.collection('notifications').doc(notificationId);
+        if ((await notificationRef.get()).exists) {
+            continue;
+        }
+        const targetRoles = normalizeRoleList(rule.targetRoles, event.targetRoles);
+        const severity = rule.severity || event.severity;
+        const metadata = stripUndefinedValues(options.context);
+        const title = renderTemplate(String(rule.title || template?.label || 'Automation update'), options.context).trim();
+        const body = renderTemplate(String(rule.detail || template?.body || 'A workflow event needs your attention.'), options.context).trim();
+        await notificationRef.set({
+            id: notificationId,
+            automationId: ruleDoc.id,
+            automationTitle: String(rule.title || ''),
+            templateId,
+            eventType: options.eventType,
+            workspace: String(rule.workspace || event.workspace),
+            relatedRecordId: options.recordId,
+            relatedPath: `${event.relatedPath}?highlight=${options.recordId}`,
+            title: title || 'Automation update',
+            body: body || 'A workflow event needs your attention.',
+            severity,
+            targetRoles,
+            readBy: [],
+            triggeredAt: fieldValue().serverTimestamp(),
+            metadata,
+            createdAt: fieldValue().serverTimestamp(),
+            updatedAt: fieldValue().serverTimestamp(),
+            createdBy: null,
+            updatedBy: null,
+        });
+        createdCount += 1;
+    }
+    return createdCount;
+}
+function sanitizePublishedProduct(productId, raw) {
+    const website = raw.website || {};
+    return {
+        id: productId,
+        slug: raw.slug || slugify(raw.name || productId),
+        name: raw.name || '',
+        category: raw.category || 'Seating',
+        room: raw.room || 'Living',
+        style: raw.style || 'Contemporary',
+        status: 'Live',
+        materials: Array.isArray(raw.materials) ? raw.materials : [],
+        finishes: Array.isArray(raw.finishes) ? raw.finishes : [],
+        upholsterySwatches: Array.isArray(raw.upholsterySwatches) ? raw.upholsterySwatches : [],
+        heroImage: raw.heroImage || '',
+        cardImage: raw.cardImage || raw.heroImage || '',
+        gallery: Array.isArray(raw.gallery) ? raw.gallery : [],
+        summary: raw.summary || '',
+        story: raw.story || raw.summary || '',
+        description: raw.description || raw.summary || '',
+        dimensions: raw.dimensions || { width: 0, depth: 0, height: 0 },
+        sizePresets: Array.isArray(raw.sizePresets) ? raw.sizePresets : [],
+        customDimensions: Boolean(raw.customDimensions),
+        priceFrom: Number(raw.priceFrom || 0),
+        leadTime: raw.leadTime || '',
+        tags: Array.isArray(raw.tags) ? raw.tags : [],
+        overlayKind: raw.overlayKind || 'sofa',
+        silhouetteTone: raw.silhouetteTone || null,
+        processGallery: Array.isArray(raw.processGallery) ? raw.processGallery : [],
+        website: {
+            isPublished: true,
+            visibility: 'public',
+            featured: Boolean(website.featured),
+            featuredOrder: Number(website.featuredOrder || 999),
+            storeTitle: website.storeTitle || raw.name || '',
+            storeSummary: website.storeSummary || raw.summary || '',
+            storeDescription: website.storeDescription || raw.description || '',
+            seoTitle: website.seoTitle || raw.name || '',
+            seoDescription: website.seoDescription || raw.summary || '',
+            publishedAt: website.publishedAt || null,
+            publishedBy: website.publishedBy || null,
+        },
+        updatedAt: fieldValue().serverTimestamp(),
+    };
+}
+async function deletePrefix(prefix) {
+    const [files] = await bucket.getFiles({ prefix });
+    if (!files.length)
+        return;
+    await Promise.all(files.map((file) => file.delete().catch(() => undefined)));
+}
+async function syncPublishedProductRecord(productId, after) {
+    if (!after) {
+        await db.collection('publishedProducts').doc(productId).delete().catch(() => undefined);
+        return false;
+    }
+    const shouldPublish = after.status === 'Live' &&
+        Boolean(after.website?.isPublished) &&
+        String(after.website?.visibility || 'internal') === 'public';
+    if (!shouldPublish) {
+        await db.collection('publishedProducts').doc(productId).delete().catch(() => undefined);
+        return false;
+    }
+    await db
+        .collection('publishedProducts')
+        .doc(productId)
+        .set(sanitizePublishedProduct(productId, after), { merge: true });
+    return true;
+}
+exports.createTeamMember = (0, https_1.onCall)({ region }, async (request) => {
+    requireAdmin(request.auth || undefined);
+    const name = String(request.data?.name || '').trim();
+    const email = String(request.data?.email || '').trim().toLowerCase();
+    const phone = String(request.data?.phone || '').trim();
+    const role = normalizeRole(String(request.data?.role || 'Read Only'));
+    const isPublicProfile = Boolean(request.data?.isPublicProfile);
+    if (!name || !email) {
+        throw new https_1.HttpsError('invalid-argument', 'Name and email are required.');
+    }
+    try {
+        await auth.getUserByEmail(email);
+        throw new https_1.HttpsError('already-exists', 'An account with this email already exists.');
+    }
+    catch (error) {
+        if (error instanceof https_1.HttpsError)
+            throw error;
+    }
+    const temporaryPassword = randomPassword();
+    const userRecord = await auth.createUser({
+        email,
+        password: temporaryPassword,
+        displayName: name,
+    });
+    await auth.setCustomUserClaims(userRecord.uid, { role });
+    const userDoc = {
+        uid: userRecord.uid,
+        name,
+        email,
+        phone,
+        role,
+        initials: createInitials(name),
+        status: 'Invited',
+        isPublicProfile,
+        createdAt: fieldValue().serverTimestamp(),
+        updatedAt: fieldValue().serverTimestamp(),
+        createdBy: request.auth?.uid || null,
+        updatedBy: request.auth?.uid || null,
+    };
+    const batch = db.batch();
+    batch.set(db.collection('users').doc(userRecord.uid), userDoc, { merge: true });
+    if (isPublicProfile) {
+        batch.set(db.collection('teamProfiles').doc(userRecord.uid), {
+            id: userRecord.uid,
+            uid: userRecord.uid,
+            name,
+            email,
+            phone,
+            role,
+            initials: createInitials(name),
+            avatarUrl: null,
+            avatarPath: null,
+            bio: '',
+            isPublicProfile: true,
+            updatedAt: fieldValue().serverTimestamp(),
+        }, { merge: true });
+    }
+    await batch.commit();
+    await writeAuditLog('system', userRecord.uid, 'team-member-created', {
+        role,
+        email,
+        requestedBy: request.auth?.uid || null,
+    });
+    return {
+        uid: userRecord.uid,
+        temporaryPassword,
+    };
+});
+exports.backfillPublishedProducts = (0, https_1.onCall)({ region }, async (request) => {
+    requireAdmin(request.auth || undefined);
+    const snapshot = await db.collection('products').get();
+    let publishedCount = 0;
+    for (const docSnap of snapshot.docs) {
+        const published = await syncPublishedProductRecord(docSnap.id, docSnap.data());
+        if (published) {
+            publishedCount += 1;
+        }
+    }
+    await writeAuditLog('products', 'backfill', 'published-products-backfill', {
+        totalProducts: snapshot.size,
+        publishedCount,
+        requestedBy: request.auth?.uid || null,
+    });
+    return {
+        totalProducts: snapshot.size,
+        publishedCount,
+    };
+});
+exports.disableTeamMember = (0, https_1.onCall)({ region }, async (request) => {
+    requireAdmin(request.auth || undefined);
+    const uid = String(request.data?.uid || '').trim();
+    if (!uid) {
+        throw new https_1.HttpsError('invalid-argument', 'A user id is required.');
+    }
+    await auth.updateUser(uid, { disabled: true });
+    await db.collection('users').doc(uid).set({
+        status: 'Disabled',
+        updatedAt: fieldValue().serverTimestamp(),
+        updatedBy: request.auth?.uid || null,
+    }, { merge: true });
+    await db.collection('teamProfiles').doc(uid).delete().catch(() => undefined);
+    await writeAuditLog('system', uid, 'team-member-disabled', {
+        requestedBy: request.auth?.uid || null,
+    });
+    return { success: true };
+});
+exports.markNotificationRead = (0, https_1.onCall)({ region }, async (request) => {
+    const { uid, role } = requireSignedIn(request.auth || undefined);
+    const notificationId = String(request.data?.notificationId || '').trim();
+    if (!notificationId) {
+        throw new https_1.HttpsError('invalid-argument', 'A notification id is required.');
+    }
+    const notificationRef = db.collection('notifications').doc(notificationId);
+    const notificationSnap = await notificationRef.get();
+    if (!notificationSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Notification not found.');
+    }
+    const targetRoles = Array.isArray(notificationSnap.data()?.targetRoles)
+        ? notificationSnap.data()?.targetRoles
+        : [];
+    if (!targetRoles.includes(role)) {
+        throw new https_1.HttpsError('permission-denied', 'You do not have access to this notification.');
+    }
+    await notificationRef.set({
+        readBy: fieldValue().arrayUnion(uid),
+        updatedAt: fieldValue().serverTimestamp(),
+        updatedBy: uid,
+    }, { merge: true });
+    return { success: true };
+});
+exports.markAllNotificationsRead = (0, https_1.onCall)({ region }, async (request) => {
+    const { uid, role } = requireSignedIn(request.auth || undefined);
+    const snapshot = await db.collection('notifications').where('targetRoles', 'array-contains', role).get();
+    const batch = db.batch();
+    let updatedCount = 0;
+    snapshot.docs.forEach((docSnap) => {
+        const readBy = Array.isArray(docSnap.data().readBy) ? docSnap.data().readBy : [];
+        if (readBy.includes(uid))
+            return;
+        batch.set(docSnap.ref, {
+            readBy: fieldValue().arrayUnion(uid),
+            updatedAt: fieldValue().serverTimestamp(),
+            updatedBy: uid,
+        }, { merge: true });
+        updatedCount += 1;
+    });
+    if (updatedCount) {
+        await batch.commit();
+    }
+    return { success: true, updatedCount };
+});
+exports.syncTeamClaims = (0, firestore_1.onDocumentWritten)({ region, document: 'users/{uid}' }, async (event) => {
+    const uid = event.params.uid;
+    const after = event.data?.after?.data();
+    if (!after) {
+        await auth.setCustomUserClaims(uid, null);
+        await db.collection('teamProfiles').doc(uid).delete().catch(() => undefined);
+        return;
+    }
+    const role = normalizeRole(after.role);
+    await auth.setCustomUserClaims(uid, { role });
+    if (after.isPublicProfile) {
+        await db.collection('teamProfiles').doc(uid).set({
+            id: uid,
+            uid,
+            name: after.name || '',
+            email: after.email || '',
+            phone: after.phone || '',
+            role,
+            initials: after.initials || createInitials(after.name || ''),
+            avatarUrl: after.avatarUrl || null,
+            avatarPath: after.avatarPath || null,
+            bio: after.bio || '',
+            isPublicProfile: true,
+            updatedAt: fieldValue().serverTimestamp(),
+        }, { merge: true });
+    }
+    else {
+        await db.collection('teamProfiles').doc(uid).delete().catch(() => undefined);
+    }
+});
+exports.syncPublishedProduct = (0, firestore_1.onDocumentWritten)({ region, document: 'products/{productId}' }, async (event) => {
+    const productId = event.params.productId;
+    const after = event.data?.after?.data();
+    if (!after) {
+        await db.collection('publishedProducts').doc(productId).delete().catch(() => undefined);
+        await writeAuditLog('products', productId, 'product-deleted', {});
+        return;
+    }
+    const published = await syncPublishedProductRecord(productId, after);
+    if (!published) {
+        await writeAuditLog('products', productId, 'product-unpublished', {
+            status: after.status || null,
+            visibility: after.website?.visibility || null,
+        });
+        return;
+    }
+    await writeAuditLog('products', productId, 'product-published-sync', {
+        slug: after.slug || null,
+        name: after.name || null,
+    });
+});
+exports.cleanupDeletedProductFiles = (0, firestore_1.onDocumentDeleted)({ region, document: 'products/{productId}' }, async (event) => {
+    const productId = event.params.productId;
+    try {
+        await deletePrefix(`products/${productId}/`);
+    }
+    catch (error) {
+        firebase_functions_1.logger.error('Failed to cleanup deleted product files', { productId, error });
+    }
+});
+exports.cleanupDeletedMaterialFiles = (0, firestore_1.onDocumentDeleted)({ region, document: 'materials/{materialId}' }, async (event) => {
+    try {
+        await deletePrefix(`website/materials/${event.params.materialId}/`);
+    }
+    catch (error) {
+        firebase_functions_1.logger.error('Failed to cleanup deleted material files', {
+            materialId: event.params.materialId,
+            error,
+        });
+    }
+});
+exports.cleanupDeletedSampleRoomFiles = (0, firestore_1.onDocumentDeleted)({ region, document: 'sampleRooms/{roomId}' }, async (event) => {
+    try {
+        await deletePrefix(`website/sample-rooms/${event.params.roomId}/`);
+    }
+    catch (error) {
+        firebase_functions_1.logger.error('Failed to cleanup deleted sample room files', {
+            roomId: event.params.roomId,
+            error,
+        });
+    }
+});
+exports.cleanupDeletedTestimonialFiles = (0, firestore_1.onDocumentDeleted)({ region, document: 'testimonials/{testimonialId}' }, async (event) => {
+    try {
+        await deletePrefix(`website/testimonials/${event.params.testimonialId}/`);
+    }
+    catch (error) {
+        firebase_functions_1.logger.error('Failed to cleanup deleted testimonial files', {
+            testimonialId: event.params.testimonialId,
+            error,
+        });
+    }
+});
+exports.cleanupDeletedPortfolioFiles = (0, firestore_1.onDocumentDeleted)({ region, document: 'portfolioProjects/{projectId}' }, async (event) => {
+    try {
+        await deletePrefix(`website/portfolio/${event.params.projectId}/`);
+    }
+    catch (error) {
+        firebase_functions_1.logger.error('Failed to cleanup deleted portfolio files', {
+            projectId: event.params.projectId,
+            error,
+        });
+    }
+});
+exports.cleanupDeletedTeamProfileFiles = (0, firestore_1.onDocumentDeleted)({ region, document: 'teamProfiles/{uid}' }, async (event) => {
+    try {
+        await deletePrefix(`website/team-profiles/${event.params.uid}/`);
+    }
+    catch (error) {
+        firebase_functions_1.logger.error('Failed to cleanup deleted team profile files', {
+            uid: event.params.uid,
+            error,
+        });
+    }
+});
+exports.notifyEnquiryAutomations = (0, firestore_1.onDocumentWritten)({ region, document: 'enquiries/{enquiryId}' }, async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!after)
+        return;
+    if (!before) {
+        await createAutomationNotifications({
+            eventType: 'lead.created',
+            recordId: event.params.enquiryId,
+            eventKey: 'created',
+            context: {
+                client_name: after.clientName || 'Client',
+                product_names: Array.isArray(after.productNames) ? after.productNames.join(', ') : '',
+                status: after.status || 'New',
+                channel: after.channel || '',
+            },
+        });
+        return;
+    }
+    if (before.status !== after.status && after.status === 'Consultation Scheduled') {
+        await createAutomationNotifications({
+            eventType: 'lead.consultation_scheduled',
+            recordId: event.params.enquiryId,
+            eventKey: `consultation-scheduled-${after.status}`,
+            context: {
+                client_name: after.clientName || 'Client',
+                product_names: Array.isArray(after.productNames) ? after.productNames.join(', ') : '',
+                status: after.status,
+            },
+        });
+    }
+    if (before.status !== after.status && after.status === 'Quote Sent') {
+        await createAutomationNotifications({
+            eventType: 'lead.quote_sent',
+            recordId: event.params.enquiryId,
+            eventKey: `quote-sent-${after.status}`,
+            context: {
+                client_name: after.clientName || 'Client',
+                product_names: Array.isArray(after.productNames) ? after.productNames.join(', ') : '',
+                status: after.status,
+            },
+        });
+    }
+});
+exports.notifyConsultationAutomations = (0, firestore_1.onDocumentWritten)({ region, document: 'consultations/{consultationId}' }, async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!after)
+        return;
+    if (!before || (before.scheduledAt !== after.scheduledAt && after.status === 'Scheduled')) {
+        await createAutomationNotifications({
+            eventType: 'consultation.scheduled',
+            recordId: event.params.consultationId,
+            eventKey: String(after.scheduledAt || 'scheduled'),
+            context: {
+                client_name: after.clientName || 'Client',
+                scheduled_at: after.scheduledAt || '',
+                designer: after.assignedDesigner || 'Design team',
+            },
+        });
+    }
+});
+exports.notifyFinanceAutomations = (0, firestore_1.onDocumentWritten)({ region, document: 'accountingRecords/{recordId}' }, async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!after)
+        return;
+    if (after.status === 'Overdue' && before?.status !== 'Overdue') {
+        await createAutomationNotifications({
+            eventType: 'finance.overdue',
+            recordId: event.params.recordId,
+            eventKey: `overdue-${after.dueDate || event.params.recordId}`,
+            context: {
+                title: after.title || 'Finance item',
+                client_name: after.clientName || 'Client',
+                amount: Number(after.amount || 0),
+                due_date: after.dueDate || '',
+                status: after.status,
+            },
+        });
+    }
+});
+exports.notifyInventoryAutomations = (0, firestore_1.onDocumentWritten)({ region, document: 'inventoryItems/{inventoryId}' }, async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!after)
+        return;
+    const isLowStock = Number(after.onHand || 0) <= Number(after.reorderPoint || 0);
+    const wasLowStock = before
+        ? Number(before.onHand || 0) <= Number(before.reorderPoint || 0)
+        : false;
+    if (isLowStock && !wasLowStock) {
+        await createAutomationNotifications({
+            eventType: 'inventory.low_stock',
+            recordId: event.params.inventoryId,
+            eventKey: `low-stock-${after.onHand || 0}`,
+            context: {
+                item_name: after.name || 'Inventory item',
+                on_hand: Number(after.onHand || 0),
+                reorder_point: Number(after.reorderPoint || 0),
+                supplier: after.supplier || '',
+            },
+        });
+    }
+});
+exports.notifyJobAutomations = (0, firestore_1.onDocumentWritten)({ region, document: 'productionJobs/{jobId}' }, async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!after || !before || before.status === after.status)
+        return;
+    await createAutomationNotifications({
+        eventType: 'job.stage_changed',
+        recordId: event.params.jobId,
+        eventKey: String(after.status || 'job-stage'),
+        context: {
+            client_name: after.clientName || 'Client',
+            product_name: after.productName || 'Production job',
+            stage: after.status || '',
+            craftsman: after.craftsman || '',
+        },
+    });
+});
+exports.auditEnquiryWrites = (0, firestore_1.onDocumentWritten)({ region, document: 'enquiries/{enquiryId}' }, async (event) => {
+    const after = event.data?.after?.data();
+    await writeAuditLog('pipeline', event.params.enquiryId, after ? 'enquiry-written' : 'enquiry-deleted', {});
+});
+exports.auditFinanceWrites = (0, firestore_1.onDocumentWritten)({ region, document: 'accountingRecords/{recordId}' }, async (event) => {
+    const after = event.data?.after?.data();
+    await writeAuditLog('finance', event.params.recordId, after ? 'finance-written' : 'finance-deleted', {});
+});

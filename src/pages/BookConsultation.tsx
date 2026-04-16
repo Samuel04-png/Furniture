@@ -3,13 +3,14 @@ import { MessageCircle } from 'lucide-react';
 import Button from '../components/Button';
 import { InputField, PageHero, SectionIntro, SelectField, TextAreaField } from '../components/primitives';
 import { createWhatsAppLink } from '../lib/utils';
-import { asset } from '../data/content';
+import { asset } from '../config/site';
 import { useTailoredStore } from '../store/useTailoredStore';
 
 
 export default function BookConsultation() {
   const createConsultationRequest = useTailoredStore((state) => state.createConsultationRequest);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [form, setForm] = useState({
     clientName: '',
     phone: '',
@@ -19,17 +20,23 @@ export default function BookConsultation() {
     notes: '',
   });
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    createConsultationRequest({
-      clientName: form.clientName,
-      phone: form.phone,
-      email: form.email,
-      preferredDateTime: `${form.preferredDate}T${form.preferredTime || '10:00'}:00.000Z`,
-      notes: form.notes,
-      source: 'consultation',
-    });
-    setSubmitted(true);
+    setSubmitError('');
+    try {
+      await createConsultationRequest({
+        clientName: form.clientName,
+        phone: form.phone,
+        email: form.email,
+        preferredDateTime: `${form.preferredDate}T${form.preferredTime || '10:00'}:00.000Z`,
+        notes: form.notes,
+        source: 'consultation',
+      });
+      setSubmitted(true);
+    } catch (error) {
+      console.error(error);
+      setSubmitError('We could not book this consultation right now. Please try again.');
+    }
   };
 
   const whatsappLink = createWhatsAppLink(
@@ -68,7 +75,7 @@ export default function BookConsultation() {
                 </div>
               </div>
             ) : (
-              <form className="space-y-6" onSubmit={handleSubmit}>
+              <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
                 <SectionIntro
                   eyebrow="Tell us the essentials"
                   title="We learn your space, your taste, and your life"
@@ -96,6 +103,7 @@ export default function BookConsultation() {
                   onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
                   placeholder="Room type, desired pieces, style direction, or any dimensions you already know."
                 />
+                {submitError ? <p className="rounded-[1rem] border border-tm-error/20 bg-tm-error/10 px-4 py-3 font-dm text-sm text-tm-error">{submitError}</p> : null}
                 <Button type="submit" variant="minimal" className="bg-tm-obsidian hover:bg-tm-obsidian hover:text-tm-cream">
                   Request consultation
                 </Button>

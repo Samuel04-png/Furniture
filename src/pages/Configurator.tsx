@@ -1,8 +1,8 @@
-import { useEffect, useMemo, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Upload } from 'lucide-react';
 import { DimensionDiagram, InputField, PageHero, SectionIntro, SelectField, TextAreaField } from '../components/primitives';
-import { asset } from '../data/content';
+import { asset } from '../config/site';
 import Image from '../components/Image';
 
 import { formatCurrency, prepareRoomImage } from '../lib/utils';
@@ -25,6 +25,7 @@ export default function Configurator() {
   const setDraft = useTailoredStore((state) => state.setConfiguratorDraft);
   const resetDraft = useTailoredStore((state) => state.resetConfiguratorDraft);
   const createQuoteRequest = useTailoredStore((state) => state.createQuoteRequest);
+  const [submitError, setSubmitError] = useState('');
   const liveProducts = useMemo(() => products.filter((product) => product.status === 'Live'), [products]);
   const currentStep =
     location.pathname.endsWith('/step-4') ? 4 : location.pathname.endsWith('/step-3') ? 3 : location.pathname.endsWith('/step-2') ? 2 : location.pathname.endsWith('/confirmation') ? 5 : 1;
@@ -78,10 +79,16 @@ export default function Configurator() {
     setDraft({ [field]: prepared.dataUrl } as never);
   };
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
-    createQuoteRequest();
-    navigate('/configure/confirmation');
+    setSubmitError('');
+    try {
+      await createQuoteRequest();
+      navigate('/configure/confirmation');
+    } catch (error) {
+      console.error(error);
+      setSubmitError('We could not send your quote request right now. Please try again.');
+    }
   };
 
   if (currentStep === 5) {
@@ -247,7 +254,7 @@ export default function Configurator() {
               ) : null}
 
               {currentStep === 4 ? (
-                <form onSubmit={submit}>
+                <form onSubmit={(event) => void submit(event)}>
                   <SectionIntro eyebrow="Step 4" title="Review and submit quote request" body="This summary and your files will appear in the admin CRM immediately after submission." />
                   <div className="mt-8 rounded-[1.8rem] border border-black/8 bg-[#f6f1e7] p-6">
                     <p className="font-cormorant text-[2.2rem] leading-none tracking-[-0.03em] text-tm-obsidian">{selectedProduct?.name || 'Bespoke Custom Design'}</p>
@@ -278,6 +285,7 @@ export default function Configurator() {
                       Optional: upload a photo of your space
                       <input type="file" accept="image/*" className="hidden" onChange={(event) => event.target.files?.[0] && uploadImage(event.target.files[0], 'uploadedSpacePhoto')} />
                     </label>
+                    {submitError ? <p className="rounded-[1rem] border border-tm-error/20 bg-tm-error/10 px-4 py-3 font-dm text-sm text-tm-error">{submitError}</p> : null}
                     <button type="submit" className="w-full rounded-full bg-tm-gold px-6 py-4 font-dm text-[0.78rem] uppercase tracking-[0.24em] text-tm-charcoal">
                       Send my quote request
                     </button>

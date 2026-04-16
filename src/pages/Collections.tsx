@@ -3,7 +3,7 @@ import { RotateCcw, Search } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHero, ProductCard, SectionIntro } from '../components/primitives';
 import { useTailoredStore } from '../store/useTailoredStore';
-import { asset } from '../data/content';
+import { asset } from '../config/site';
 
 
 const roomOptions = ['Living', 'Dining', 'Bedroom', 'Office', 'Outdoor'] as const;

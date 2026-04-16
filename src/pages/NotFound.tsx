@@ -1,6 +1,6 @@
 import Button from '../components/Button';
 import { PageHero } from '../components/primitives';
-import { asset } from '../data/content';
+import { asset } from '../config/site';
 
 
 export default function NotFound() {

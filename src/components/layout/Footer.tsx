@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 import Button from '../Button';
-import { companySettings } from '../../data/content';
 import { WordmarkLockup } from '../primitives';
+import { useTailoredStore } from '../../store/useTailoredStore';
 
 export default function Footer() {
+  const companySettings = useTailoredStore((state) => state.companySettings);
   return (
     <footer className="border-t border-black/10 bg-tm-charcoal text-tm-cream">
       <div className="tm-container tm-section">

@@ -1,37 +1,126 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { adminCredentials, companySettings, materials, products, sampleRooms, teamMembers, testimonials, portfolioProjects } from '../data/content';
 import {
-  initialAccounting,
-  initialConsultations,
-  initialEnquiries,
-  initialInventory,
-  initialProductionOrders,
-  initialVisualiserSessions,
-} from '../data/adminSeed';
+  createTeamMember as createTeamMemberRemote,
+  disableTeamMember as disableTeamMemberRemote,
+  type CreateTeamMemberResult,
+  subscribeTeamMembers,
+  updateTeamMember as updateTeamMemberRemote,
+} from '../lib/backend/repositories/team';
+import {
+  createProduct as createProductRemote,
+  deleteProduct as deleteProductRemote,
+  subscribeAdminProducts,
+  updateProduct as updateProductRemote,
+} from '../lib/backend/repositories/products';
+import {
+  createPortfolioProject as createPortfolioProjectRemote,
+  createMaterial as createMaterialRemote,
+  createSampleRoom as createSampleRoomRemote,
+  createTestimonial as createTestimonialRemote,
+  deletePortfolioProject as deletePortfolioProjectRemote,
+  deleteMaterial as deleteMaterialRemote,
+  deleteSampleRoom as deleteSampleRoomRemote,
+  deleteTestimonial as deleteTestimonialRemote,
+  fetchCompanySettings,
+  subscribeAdminMaterials,
+  subscribeAdminPortfolioProjects,
+  subscribeAdminSampleRooms,
+  subscribeAdminTestimonials,
+  subscribeCompanySettings,
+  subscribeMaterials,
+  subscribePortfolioProjects,
+  subscribePublicTeamProfiles,
+  subscribePublishedProducts,
+  subscribeSampleRooms,
+  subscribeTestimonials,
+  updatePortfolioProject as updatePortfolioProjectRemote,
+  updateMaterial as updateMaterialRemote,
+  updateSampleRoom as updateSampleRoomRemote,
+  updateTestimonial as updateTestimonialRemote,
+} from '../lib/backend/repositories/publicContent';
+import {
+  addEnquiryNote as addEnquiryNoteRemote,
+  createConsultation as createConsultationRemote,
+  createConsultationRequest as createConsultationRequestRemote,
+  createEnquiry as createEnquiryRemote,
+  createQuoteRequest as createQuoteRequestRemote,
+  createVisualiserSubmission as createVisualiserSubmissionRemote,
+  deleteConsultation as deleteConsultationRemote,
+  deleteEnquiry as deleteEnquiryRemote,
+  deleteVisualiserSession as deleteVisualiserSessionRemote,
+  subscribeConsultations,
+  subscribeEnquiries,
+  subscribeVisualiserSessions,
+  updateConsultation as updateConsultationRemote,
+  updateEnquiry as updateEnquiryRemote,
+  updateVisualiserSessionStatus as updateVisualiserSessionStatusRemote,
+} from '../lib/backend/repositories/crm';
+import {
+  createInventoryItem as createInventoryItemRemote,
+  createProductionOrder as createProductionOrderRemote,
+  createAccountingRecord as createAccountingRecordRemote,
+  deleteAccountingRecord as deleteAccountingRecordRemote,
+  deleteInventoryItem as deleteInventoryItemRemote,
+  deleteProductionOrder as deleteProductionOrderRemote,
+  moveProductionOrder as moveProductionOrderRemote,
+  subscribeAccountingRecords,
+  subscribeInventoryItems,
+  subscribeProductionOrders,
+  updateAccountingRecord as updateAccountingRecordRemote,
+  updateInventoryItem as updateInventoryItemRemote,
+  updateProductionOrder as updateProductionOrderRemote,
+} from '../lib/backend/repositories/operations';
+import {
+  createTemplate as createTemplateRemote,
+  createAutomation as createAutomationRemote,
+  deleteAutomation as deleteAutomationRemote,
+  deleteTemplate as deleteTemplateRemote,
+  subscribeAdminCompanySettings,
+  subscribeAutomations,
+  subscribeTemplates,
+  updateAutomation as updateAutomationRemote,
+  updateCompanySettings as updateCompanySettingsRemote,
+  updateTemplate as updateTemplateRemote,
+} from '../lib/backend/repositories/settings';
+import {
+  markAllNotificationsRead as markAllNotificationsReadRemote,
+  markNotificationRead as markNotificationReadRemote,
+  subscribeNotifications,
+} from '../lib/backend/repositories/notifications';
+import { refreshAdminSession, signInAdmin as signInAdminRemote, signOutAdmin as signOutAdminRemote, watchAuthSession } from '../lib/backend/auth';
+import { emptyCompanySettings } from '../lib/backend/constants';
+import { uploadPublicSubmissionDataUrl } from '../lib/backend/services/storage';
 import { dimensionsLabel, generateId } from '../lib/utils';
 import type {
   AccountingRecord,
+  AutomationRule,
   CompanySettings,
   ConfiguratorDraft,
   Consultation,
   Enquiry,
+  InventoryItem,
   Material,
+  NotificationRecord,
+  NotificationTemplate,
   PlacedVisualiserItem,
+  PortfolioProject,
   Product,
   ProductionOrder,
   ProductionStage,
+  SampleRoom,
   TeamMember,
+  Testimonial,
   VisualiserDraft,
   VisualiserSession,
   VisualiserSessionStatus,
-  InventoryItem,
 } from '../types';
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 const defaultVisualiserDraft: VisualiserDraft = {
   roomPhotoUrl: null,
+  roomPhotoPath: null,
   roomName: '',
   items: [],
   gridEnabled: false,
@@ -41,6 +130,7 @@ const defaultVisualiserDraft: VisualiserDraft = {
 const defaultConfiguratorDraft: ConfiguratorDraft = {
   isCustomDesign: false,
   customDesignImage: null,
+  customDesignImagePath: null,
   customDesignNotes: '',
   dimensionMode: 'standard',
   dimensions: { width: 220, depth: 100, height: 76 },
@@ -51,6 +141,7 @@ const defaultConfiguratorDraft: ConfiguratorDraft = {
   email: '',
   preferredContactTime: '',
   uploadedSpacePhoto: null,
+  uploadedSpacePhotoPath: null,
 };
 
 interface VisualiserSubmissionPayload {
@@ -76,15 +167,33 @@ interface QuoteRequestPayload {
   preferredDateTime?: string;
 }
 
+interface AuthUserState {
+  uid: string;
+  email: string | null;
+  role: TeamMember['role'];
+}
+
 interface TailoredStore {
   isAdminAuthenticated: boolean;
+  authReady: boolean;
+  authUser?: AuthUserState;
+  activeAdminId?: string;
   products: Product[];
+  adminProducts: Product[];
   materials: Material[];
-  sampleRooms: typeof sampleRooms;
-  testimonials: typeof testimonials;
-  portfolioProjects: typeof portfolioProjects;
+  adminMaterials: Material[];
+  sampleRooms: SampleRoom[];
+  adminSampleRooms: SampleRoom[];
+  testimonials: Testimonial[];
+  adminTestimonials: Testimonial[];
+  portfolioProjects: PortfolioProject[];
+  adminPortfolioProjects: PortfolioProject[];
+  publicTeamMembers: TeamMember[];
   teamMembers: TeamMember[];
   companySettings: CompanySettings;
+  notificationTemplates: NotificationTemplate[];
+  automationRules: AutomationRule[];
+  notifications: NotificationRecord[];
   enquiries: Enquiry[];
   visualiserSessions: VisualiserSession[];
   consultations: Consultation[];
@@ -93,11 +202,44 @@ interface TailoredStore {
   accountingRecords: AccountingRecord[];
   visualiserDraft: VisualiserDraft;
   configuratorDraft: ConfiguratorDraft;
+  localVisualiserSessions: VisualiserSession[];
+  productsLoaded: boolean;
+  publicDataReady: boolean;
+  adminDataReady: boolean;
+  lastError?: string;
   loginAdmin: (email: string, password: string) => boolean;
   logoutAdmin: () => void;
-  updateProduct: (productId: string, patch: Partial<Product>) => void;
-  updateMaterial: (materialId: string, patch: Partial<Material>) => void;
-  updateCompanySettings: (patch: Partial<CompanySettings>) => void;
+  initAuth: () => void;
+  signInAdmin: (email: string, password: string) => Promise<boolean>;
+  setActiveAdmin: (adminId: string) => void;
+  addProduct: (product: Product) => Promise<void>;
+  updateProduct: (productId: string, patch: Partial<Product>) => Promise<void>;
+  deleteProduct: (productId: string) => Promise<void>;
+  loadProducts: () => Promise<void>;
+  addMaterial: (material: Material) => Promise<void>;
+  updateMaterial: (materialId: string, patch: Partial<Material>) => Promise<void>;
+  deleteMaterial: (materialId: string) => Promise<void>;
+  addSampleRoom: (room: SampleRoom) => Promise<void>;
+  updateSampleRoom: (roomId: string, patch: Partial<SampleRoom>) => Promise<void>;
+  deleteSampleRoom: (roomId: string) => Promise<void>;
+  addTestimonial: (testimonial: Testimonial) => Promise<void>;
+  updateTestimonial: (testimonialId: string, patch: Partial<Testimonial>) => Promise<void>;
+  deleteTestimonial: (testimonialId: string) => Promise<void>;
+  addPortfolioProject: (project: PortfolioProject) => Promise<void>;
+  updatePortfolioProject: (projectId: string, patch: Partial<PortfolioProject>) => Promise<void>;
+  deletePortfolioProject: (projectId: string) => Promise<void>;
+  updateCompanySettings: (patch: Partial<CompanySettings>) => Promise<void>;
+  addTeamMember: (member: TeamMember) => Promise<CreateTeamMemberResult | null>;
+  updateTeamMember: (teamMemberId: string, patch: Partial<TeamMember>) => Promise<void>;
+  disableTeamMember: (teamMemberId: string) => Promise<void>;
+  addNotificationTemplate: (template: NotificationTemplate) => Promise<void>;
+  updateNotificationTemplate: (templateId: string, patch: Partial<NotificationTemplate>) => Promise<void>;
+  deleteNotificationTemplate: (templateId: string) => Promise<void>;
+  addAutomationRule: (automation: AutomationRule) => Promise<void>;
+  updateAutomationRule: (automationId: string, patch: Partial<AutomationRule>) => Promise<void>;
+  deleteAutomationRule: (automationId: string) => Promise<void>;
+  markNotificationRead: (notificationId: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
   setVisualiserDraft: (patch: Partial<VisualiserDraft>) => void;
   resetVisualiserDraft: () => void;
   addPlacedItem: (item: PlacedVisualiserItem) => void;
@@ -106,21 +248,31 @@ interface TailoredStore {
   clearPlacedItems: () => void;
   saveVisualiserDraftSession: () => string;
   loadVisualiserSession: (sessionId: string) => void;
-  updateVisualiserSessionStatus: (sessionId: string, status: VisualiserSessionStatus) => void;
-  createVisualiserSubmission: (payload: VisualiserSubmissionPayload) => { enquiryId: string; sessionId: string };
+  updateVisualiserSessionStatus: (sessionId: string, status: VisualiserSessionStatus) => Promise<void>;
+  createVisualiserSubmission: (payload: VisualiserSubmissionPayload) => Promise<{ enquiryId: string; sessionId: string }>;
   setConfiguratorDraft: (patch: Partial<ConfiguratorDraft>) => void;
   resetConfiguratorDraft: () => void;
-  createQuoteRequest: (payload?: QuoteRequestPayload) => { enquiryId: string };
-  createConsultationRequest: (payload: ConsultationRequestPayload) => { enquiryId: string; consultationId: string };
-  addEnquiry: (enquiry: Enquiry) => void;
-  updateEnquiry: (enquiryId: string, patch: Partial<Enquiry>) => void;
-  addEnquiryNote: (enquiryId: string, author: string, message: string) => void;
-  assignEnquiry: (enquiryId: string, teamMemberId: string) => void;
-  updateConsultation: (consultationId: string, patch: Partial<Consultation>) => void;
-  moveProductionOrder: (orderId: string, status: ProductionStage) => void;
-  updateInventoryItem: (inventoryId: string, patch: Partial<InventoryItem>) => void;
-  addAccountingRecord: (record: AccountingRecord) => void;
-  updateAccountingRecord: (recordId: string, patch: Partial<AccountingRecord>) => void;
+  createQuoteRequest: (payload?: QuoteRequestPayload) => Promise<{ enquiryId: string }>;
+  createConsultationRequest: (payload: ConsultationRequestPayload) => Promise<{ enquiryId: string; consultationId: string }>;
+  addEnquiry: (enquiry: Enquiry) => Promise<void>;
+  updateEnquiry: (enquiryId: string, patch: Partial<Enquiry>) => Promise<void>;
+  deleteEnquiry: (enquiryId: string) => Promise<void>;
+  addEnquiryNote: (enquiryId: string, author: string, message: string) => Promise<void>;
+  assignEnquiry: (enquiryId: string, teamMemberId: string) => Promise<void>;
+  addConsultation: (consultation: Consultation) => Promise<void>;
+  updateConsultation: (consultationId: string, patch: Partial<Consultation>) => Promise<void>;
+  deleteConsultation: (consultationId: string) => Promise<void>;
+  deleteVisualiserSession: (sessionId: string) => Promise<void>;
+  addProductionOrder: (order: ProductionOrder) => Promise<void>;
+  updateProductionOrder: (orderId: string, patch: Partial<ProductionOrder>) => Promise<void>;
+  moveProductionOrder: (orderId: string, status: ProductionStage) => Promise<void>;
+  deleteProductionOrder: (orderId: string) => Promise<void>;
+  addInventoryItem: (item: InventoryItem) => Promise<void>;
+  updateInventoryItem: (inventoryId: string, patch: Partial<InventoryItem>) => Promise<void>;
+  deleteInventoryItem: (inventoryId: string) => Promise<void>;
+  addAccountingRecord: (record: AccountingRecord) => Promise<void>;
+  updateAccountingRecord: (recordId: string, patch: Partial<AccountingRecord>) => Promise<void>;
+  deleteAccountingRecord: (recordId: string) => Promise<void>;
 }
 
 export const productionStages: ProductionStage[] = [
@@ -132,66 +284,707 @@ export const productionStages: ProductionStage[] = [
   'Delivered',
 ];
 
+let authUnsubscribe: (() => void) | undefined;
+let publicUnsubscribes: Array<() => void> = [];
+let adminUnsubscribes: Array<() => void> = [];
+let publicSubscriptionsStarted = false;
+let adminSubscriptionsStarted = false;
+
 const createInitialState = () => ({
   isAdminAuthenticated: false,
-  products: clone(products),
-  materials: clone(materials),
-  sampleRooms,
-  testimonials,
-  portfolioProjects,
-  teamMembers: clone(teamMembers),
-  companySettings: clone(companySettings),
-  enquiries: clone(initialEnquiries),
-  visualiserSessions: clone(initialVisualiserSessions),
-  consultations: clone(initialConsultations),
-  productionOrders: clone(initialProductionOrders),
-  inventoryItems: clone(initialInventory),
-  accountingRecords: clone(initialAccounting),
+  authReady: false,
+  authUser: undefined,
+  activeAdminId: undefined,
+  products: [] as Product[],
+  adminProducts: [] as Product[],
+  materials: [] as Material[],
+  adminMaterials: [] as Material[],
+  sampleRooms: [] as SampleRoom[],
+  adminSampleRooms: [] as SampleRoom[],
+  testimonials: [] as Testimonial[],
+  adminTestimonials: [] as Testimonial[],
+  portfolioProjects: [] as PortfolioProject[],
+  adminPortfolioProjects: [] as PortfolioProject[],
+  publicTeamMembers: [] as TeamMember[],
+  teamMembers: [] as TeamMember[],
+  companySettings: clone(emptyCompanySettings),
+  notificationTemplates: [] as NotificationTemplate[],
+  automationRules: [] as AutomationRule[],
+  notifications: [] as NotificationRecord[],
+  enquiries: [] as Enquiry[],
+  visualiserSessions: [] as VisualiserSession[],
+  consultations: [] as Consultation[],
+  productionOrders: [] as ProductionOrder[],
+  inventoryItems: [] as InventoryItem[],
+  accountingRecords: [] as AccountingRecord[],
   visualiserDraft: clone(defaultVisualiserDraft),
   configuratorDraft: clone(defaultConfiguratorDraft),
+  localVisualiserSessions: [] as VisualiserSession[],
+  productsLoaded: false,
+  publicDataReady: false,
+  adminDataReady: false,
+  lastError: undefined as string | undefined,
 });
+
+function currentUser(get: () => TailoredStore) {
+  const authUser = get().authUser;
+  return authUser ? { uid: authUser.uid, email: authUser.email } : null;
+}
+
+function setError(set: (partial: Partial<TailoredStore> | ((state: TailoredStore) => Partial<TailoredStore>)) => void, message: string) {
+  set({ lastError: message });
+}
+
+function mergeCompanySettings(base: CompanySettings, templates: NotificationTemplate[]) {
+  return {
+    ...clone(emptyCompanySettings),
+    ...base,
+    socialHandles: {
+      ...clone(emptyCompanySettings.socialHandles),
+      ...base.socialHandles,
+    },
+    defaultLeadTimes: {
+      ...clone(emptyCompanySettings.defaultLeadTimes),
+      ...base.defaultLeadTimes,
+    },
+    notificationTemplates: templates,
+  };
+}
+
+function createInitials(name: string) {
+  return (
+    name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join('') || 'TM'
+  );
+}
+
+function mergeRecord<T extends { id: string }>(items: T[], record: T) {
+  const existing = items.some((item) => item.id === record.id);
+  if (existing) {
+    return items.map((item) => (item.id === record.id ? record : item));
+  }
+  return [record, ...items];
+}
+
+function syncVisibleRecord<T extends { id: string; visibleOnSite?: boolean }>(
+  items: T[],
+  record: T,
+) {
+  if (record.visibleOnSite === false) {
+    return items.filter((item) => item.id !== record.id);
+  }
+  return mergeRecord(items, record);
+}
+
+function stopAdminListeners(set: (partial: Partial<TailoredStore> | ((state: TailoredStore) => Partial<TailoredStore>)) => void) {
+  adminUnsubscribes.forEach((unsubscribe) => unsubscribe());
+  adminUnsubscribes = [];
+  adminSubscriptionsStarted = false;
+  set((state) => ({
+    adminProducts: [],
+    adminMaterials: [],
+    adminSampleRooms: [],
+    adminTestimonials: [],
+    adminPortfolioProjects: [],
+    teamMembers: [],
+    notificationTemplates: [],
+    automationRules: [],
+    notifications: [],
+    enquiries: [],
+    visualiserSessions: [],
+    consultations: [],
+    productionOrders: [],
+    inventoryItems: [],
+    accountingRecords: [],
+    adminDataReady: false,
+    companySettings: {
+      ...state.companySettings,
+      notificationTemplates: [],
+    },
+  }));
+}
+
+function startPublicListeners(
+  set: (partial: Partial<TailoredStore> | ((state: TailoredStore) => Partial<TailoredStore>)) => void,
+  get: () => TailoredStore,
+) {
+  if (publicSubscriptionsStarted) return;
+  publicSubscriptionsStarted = true;
+
+  publicUnsubscribes = [
+    subscribePublishedProducts(
+      (products) => {
+        set({
+          products,
+          productsLoaded: true,
+          publicDataReady: true,
+          lastError: undefined,
+        });
+      },
+      (message) => setError(set, message),
+    ),
+    subscribeMaterials(
+      (materials) => set({ materials, publicDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeSampleRooms(
+      (sampleRooms) => set({ sampleRooms, publicDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeTestimonials(
+      (testimonials) => set({ testimonials, publicDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribePortfolioProjects(
+      (portfolioProjects) => set({ portfolioProjects, publicDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribePublicTeamProfiles(
+      (publicTeamMembers) => set({ publicTeamMembers, publicDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeCompanySettings(
+      (settings) => {
+        set((state) => ({
+          companySettings: mergeCompanySettings(settings, state.notificationTemplates),
+          publicDataReady: true,
+        }));
+      },
+      (message) => setError(set, message),
+    ),
+  ];
+
+  void fetchCompanySettings().then((settings) => {
+    set((state) => ({
+      companySettings: mergeCompanySettings(settings, state.notificationTemplates),
+    }));
+  });
+}
+
+function startAdminListeners(
+  set: (partial: Partial<TailoredStore> | ((state: TailoredStore) => Partial<TailoredStore>)) => void,
+  get: () => TailoredStore,
+) {
+  if (adminSubscriptionsStarted) return;
+  adminSubscriptionsStarted = true;
+
+  adminUnsubscribes = [
+    subscribeAdminProducts(
+      (adminProducts) => set({ adminProducts, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeAdminMaterials(
+      (adminMaterials) => set({ adminMaterials, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeAdminSampleRooms(
+      (adminSampleRooms) => set({ adminSampleRooms, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeAdminTestimonials(
+      (adminTestimonials) => set({ adminTestimonials, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeAdminPortfolioProjects(
+      (adminPortfolioProjects) => set({ adminPortfolioProjects, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeTeamMembers(
+      (teamMembers) => {
+        const normalizedTeamMembers = teamMembers.map((member) => ({
+          ...member,
+          initials: member.initials || createInitials(member.name),
+        }));
+        const authUser = get().authUser;
+        const matchedMember = normalizedTeamMembers.find(
+          (member) =>
+            member.uid === authUser?.uid ||
+            member.email.toLowerCase() === authUser?.email?.toLowerCase(),
+        );
+
+        if (authUser && matchedMember && matchedMember.role !== authUser.role) {
+          void refreshAdminSession()
+            .then((session) => {
+              if (!session) return;
+              set((state) => ({
+                authUser: {
+                  uid: session.user.uid,
+                  email: session.user.email,
+                  role: session.role,
+                },
+                activeAdminId:
+                  state.activeAdminId && normalizedTeamMembers.some((member) => member.id === state.activeAdminId)
+                    ? state.activeAdminId
+                    : normalizedTeamMembers.find((member) => member.uid === session.user.uid)?.id ??
+                      normalizedTeamMembers.find((member) => member.email.toLowerCase() === session.user.email?.toLowerCase())?.id ??
+                      normalizedTeamMembers[0]?.id ??
+                      state.activeAdminId,
+              }));
+            })
+            .catch((error) => {
+              console.error('Failed to refresh auth session after team sync:', error);
+            });
+        }
+
+        set((state) => ({
+          teamMembers: normalizedTeamMembers,
+          activeAdminId:
+            state.activeAdminId && normalizedTeamMembers.some((member) => member.id === state.activeAdminId)
+              ? state.activeAdminId
+              : normalizedTeamMembers.find((member) => member.uid === state.authUser?.uid)?.id ??
+                normalizedTeamMembers.find((member) => member.email.toLowerCase() === state.authUser?.email?.toLowerCase())?.id ??
+                normalizedTeamMembers[0]?.id ??
+                state.activeAdminId,
+          adminDataReady: true,
+        }));
+      },
+      (message) => setError(set, message),
+    ),
+    subscribeAdminCompanySettings(
+      (settings) =>
+        set((state) => ({
+          companySettings: mergeCompanySettings(settings, state.notificationTemplates),
+          adminDataReady: true,
+        })),
+      (message) => setError(set, message),
+    ),
+    subscribeTemplates(
+      (notificationTemplates) =>
+        set((state) => ({
+          notificationTemplates,
+          companySettings: {
+            ...state.companySettings,
+            notificationTemplates,
+          },
+          adminDataReady: true,
+        })),
+      (message) => setError(set, message),
+    ),
+    subscribeAutomations(
+      (automationRules) => set({ automationRules, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeNotifications(
+      (notifications) => set({ notifications, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeEnquiries(
+      (enquiries) => set({ enquiries, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeVisualiserSessions(
+      (visualiserSessions) => set({ visualiserSessions, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeConsultations(
+      (consultations) => set({ consultations, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeProductionOrders(
+      (productionOrders) => set({ productionOrders, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeInventoryItems(
+      (inventoryItems) => set({ inventoryItems, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+    subscribeAccountingRecords(
+      (accountingRecords) => set({ accountingRecords, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+  ];
+}
 
 export const useTailoredStore = create<TailoredStore>()(
   persist(
     (set, get) => ({
       ...createInitialState(),
-      loginAdmin: (email, password) => {
-        const isValid =
-          email.trim().toLowerCase() === adminCredentials.email &&
-          password === adminCredentials.password;
-        if (isValid) {
-          set({ isAdminAuthenticated: true });
-        }
-        return isValid;
+      loginAdmin: () => false,
+      logoutAdmin: () => {
+        void signOutAdminRemote().catch((error) => {
+          console.error('Failed to sign out:', error);
+        });
+        stopAdminListeners(set);
+        set({
+          isAdminAuthenticated: false,
+          authUser: undefined,
+          activeAdminId: undefined,
+        });
       },
-      logoutAdmin: () => set({ isAdminAuthenticated: false }),
-      updateProduct: (productId, patch) =>
+      initAuth: () => {
+        startPublicListeners(set, get);
+        if (authUnsubscribe) return;
+
+        authUnsubscribe = watchAuthSession((session) => {
+          if (session) {
+            set({
+              isAdminAuthenticated: true,
+              authReady: true,
+              authUser: {
+                uid: session.user.uid,
+                email: session.user.email,
+                role: session.role,
+              },
+            });
+            startAdminListeners(set, get);
+            return;
+          }
+
+          stopAdminListeners(set);
+          set({
+            isAdminAuthenticated: false,
+            authReady: true,
+            authUser: undefined,
+            activeAdminId: undefined,
+          });
+        });
+      },
+      signInAdmin: async (email, password) => {
+        try {
+          await signInAdminRemote(email, password);
+          return true;
+        } catch (error) {
+          console.error('Firebase sign-in failed:', error);
+          set({ lastError: 'Firebase login failed. Confirm the account exists and has admin access.' });
+          return false;
+        }
+      },
+      setActiveAdmin: (adminId) => set({ activeAdminId: adminId }),
+      addProduct: async (product) => {
+        const user = currentUser(get);
+        const optimistic = {
+          ...product,
+          website: {
+            isPublished: product.website?.isPublished ?? product.status === 'Live',
+            visibility: product.website?.visibility ?? (product.status === 'Live' ? 'public' : 'internal'),
+            featured: product.website?.featured ?? false,
+            featuredOrder: product.website?.featuredOrder ?? 999,
+            storeTitle: product.website?.storeTitle ?? product.name,
+            storeSummary: product.website?.storeSummary ?? product.summary,
+            storeDescription: product.website?.storeDescription ?? product.description,
+            seoTitle: product.website?.seoTitle ?? product.name,
+            seoDescription: product.website?.seoDescription ?? product.summary,
+            publishedAt: product.website?.publishedAt ?? null,
+            publishedBy: product.website?.publishedBy ?? null,
+          },
+        };
+        set((state) => ({ adminProducts: [optimistic, ...state.adminProducts] }));
+        await createProductRemote(optimistic, user);
+      },
+      updateProduct: async (productId, patch) => {
+        const user = currentUser(get);
         set((state) => ({
-          products: state.products.map((product) =>
-            product.id === productId ? { ...product, ...patch } : product,
+          adminProducts: state.adminProducts.map((product) => {
+            if (product.id !== productId) return product;
+            const nextStatus = patch.status ?? product.status;
+            const website = patch.website
+              ? { ...product.website, ...patch.website }
+              : {
+                  ...product.website,
+                  isPublished: nextStatus === 'Live',
+                  visibility:
+                    nextStatus === 'Live'
+                      ? 'public'
+                      : product.website?.visibility ?? 'internal',
+                  publishedAt:
+                    nextStatus === 'Live'
+                      ? product.website?.publishedAt ?? new Date().toISOString()
+                      : null,
+                  publishedBy:
+                    nextStatus === 'Live'
+                      ? product.website?.publishedBy ?? user?.uid ?? null
+                      : null,
+                };
+            return { ...product, ...patch, website };
+          }),
+        }));
+        await updateProductRemote(productId, patch, user);
+      },
+      deleteProduct: async (productId) => {
+        set((state) => ({
+          adminProducts: state.adminProducts.filter((product) => product.id !== productId),
+        }));
+        await deleteProductRemote(productId);
+      },
+      loadProducts: async () => {
+        startPublicListeners(set, get);
+      },
+      addMaterial: async (material) => {
+        set((state) => ({
+          adminMaterials: mergeRecord(state.adminMaterials, material),
+          materials: syncVisibleRecord(state.materials, material),
+        }));
+        await createMaterialRemote(material, currentUser(get));
+      },
+      updateMaterial: async (materialId, patch) => {
+        set((state) => {
+          const existing = state.adminMaterials.find((material) => material.id === materialId);
+          if (!existing) return {};
+          const next = { ...existing, ...patch };
+          return {
+            adminMaterials: state.adminMaterials.map((material) =>
+              material.id === materialId ? next : material,
+            ),
+            materials: syncVisibleRecord(
+              state.materials.filter((material) => material.id !== materialId),
+              next,
+            ),
+          };
+        });
+        await updateMaterialRemote(materialId, patch, currentUser(get));
+      },
+      deleteMaterial: async (materialId) => {
+        set((state) => ({
+          adminMaterials: state.adminMaterials.filter((material) => material.id !== materialId),
+          materials: state.materials.filter((material) => material.id !== materialId),
+        }));
+        await deleteMaterialRemote(materialId);
+      },
+      addSampleRoom: async (room) => {
+        set((state) => ({
+          adminSampleRooms: mergeRecord(state.adminSampleRooms, room),
+          sampleRooms: syncVisibleRecord(state.sampleRooms, room),
+        }));
+        await createSampleRoomRemote(room, currentUser(get));
+      },
+      updateSampleRoom: async (roomId, patch) => {
+        set((state) => {
+          const existing = state.adminSampleRooms.find((room) => room.id === roomId);
+          if (!existing) return {};
+          const next = { ...existing, ...patch };
+          return {
+            adminSampleRooms: state.adminSampleRooms.map((room) =>
+              room.id === roomId ? next : room,
+            ),
+            sampleRooms: syncVisibleRecord(
+              state.sampleRooms.filter((room) => room.id !== roomId),
+              next,
+            ),
+          };
+        });
+        await updateSampleRoomRemote(roomId, patch, currentUser(get));
+      },
+      deleteSampleRoom: async (roomId) => {
+        set((state) => ({
+          adminSampleRooms: state.adminSampleRooms.filter((room) => room.id !== roomId),
+          sampleRooms: state.sampleRooms.filter((room) => room.id !== roomId),
+        }));
+        await deleteSampleRoomRemote(roomId);
+      },
+      addTestimonial: async (testimonial) => {
+        set((state) => ({
+          adminTestimonials: mergeRecord(state.adminTestimonials, testimonial),
+          testimonials: syncVisibleRecord(state.testimonials, testimonial),
+        }));
+        await createTestimonialRemote(testimonial, currentUser(get));
+      },
+      updateTestimonial: async (testimonialId, patch) => {
+        set((state) => {
+          const existing = state.adminTestimonials.find(
+            (testimonial) => testimonial.id === testimonialId,
+          );
+          if (!existing) return {};
+          const next = { ...existing, ...patch };
+          return {
+            adminTestimonials: state.adminTestimonials.map((testimonial) =>
+              testimonial.id === testimonialId ? next : testimonial,
+            ),
+            testimonials: syncVisibleRecord(
+              state.testimonials.filter((testimonial) => testimonial.id !== testimonialId),
+              next,
+            ),
+          };
+        });
+        await updateTestimonialRemote(testimonialId, patch, currentUser(get));
+      },
+      deleteTestimonial: async (testimonialId) => {
+        set((state) => ({
+          adminTestimonials: state.adminTestimonials.filter(
+            (testimonial) => testimonial.id !== testimonialId,
           ),
-        })),
-      updateMaterial: (materialId, patch) =>
+          testimonials: state.testimonials.filter((testimonial) => testimonial.id !== testimonialId),
+        }));
+        await deleteTestimonialRemote(testimonialId);
+      },
+      addPortfolioProject: async (project) => {
         set((state) => ({
-          materials: state.materials.map((material) =>
-            material.id === materialId ? { ...material, ...patch } : material,
+          adminPortfolioProjects: mergeRecord(state.adminPortfolioProjects, project),
+          portfolioProjects: syncVisibleRecord(state.portfolioProjects, project),
+        }));
+        await createPortfolioProjectRemote(project, currentUser(get));
+      },
+      updatePortfolioProject: async (projectId, patch) => {
+        set((state) => {
+          const existing = state.adminPortfolioProjects.find((project) => project.id === projectId);
+          if (!existing) return {};
+          const next = { ...existing, ...patch };
+          return {
+            adminPortfolioProjects: state.adminPortfolioProjects.map((project) =>
+              project.id === projectId ? next : project,
+            ),
+            portfolioProjects: syncVisibleRecord(
+              state.portfolioProjects.filter((project) => project.id !== projectId),
+              next,
+            ),
+          };
+        });
+        await updatePortfolioProjectRemote(projectId, patch, currentUser(get));
+      },
+      deletePortfolioProject: async (projectId) => {
+        set((state) => ({
+          adminPortfolioProjects: state.adminPortfolioProjects.filter(
+            (project) => project.id !== projectId,
           ),
-        })),
-      updateCompanySettings: (patch) =>
-        set((state) => ({
-          companySettings: {
-            ...state.companySettings,
+          portfolioProjects: state.portfolioProjects.filter((project) => project.id !== projectId),
+        }));
+        await deletePortfolioProjectRemote(projectId);
+      },
+      updateCompanySettings: async (patch) => {
+        const current = get().companySettings;
+        const merged = mergeCompanySettings(
+          {
+            ...current,
             ...patch,
             socialHandles: {
-              ...state.companySettings.socialHandles,
+              ...current.socialHandles,
               ...patch.socialHandles,
             },
             defaultLeadTimes: {
-              ...state.companySettings.defaultLeadTimes,
+              ...current.defaultLeadTimes,
               ...patch.defaultLeadTimes,
             },
           },
-        })),
+          get().notificationTemplates,
+        );
+        set({ companySettings: merged });
+        await updateCompanySettingsRemote(
+          {
+            ...merged,
+            notificationTemplates: undefined,
+          },
+          currentUser(get),
+        );
+      },
+      addTeamMember: async (member) => {
+        try {
+          return await createTeamMemberRemote({
+            name: member.name,
+            email: member.email,
+            phone: member.phone,
+            role: member.role,
+            isPublicProfile: member.isPublicProfile,
+          });
+        } catch (error) {
+          console.error('Failed to create team member:', error);
+          set({ lastError: 'Unable to create the team member account right now.' });
+          return null;
+        }
+      },
+      updateTeamMember: async (teamMemberId, patch) => {
+        set((state) => ({
+          teamMembers: state.teamMembers.map((member) =>
+            member.id === teamMemberId ? { ...member, ...patch } : member,
+          ),
+        }));
+        await updateTeamMemberRemote(teamMemberId, patch, currentUser(get));
+      },
+      disableTeamMember: async (teamMemberId) => {
+        set((state) => ({
+          teamMembers: state.teamMembers.map((member) =>
+            member.id === teamMemberId ? { ...member, status: 'Disabled' } : member,
+          ),
+        }));
+        await disableTeamMemberRemote(teamMemberId);
+      },
+      addNotificationTemplate: async (template) => {
+        const notificationTemplates = [template, ...get().notificationTemplates];
+        set((state) => ({
+          notificationTemplates,
+          companySettings: {
+            ...state.companySettings,
+            notificationTemplates,
+          },
+        }));
+        await createTemplateRemote(template, currentUser(get));
+      },
+      updateNotificationTemplate: async (templateId, patch) => {
+        set((state) => {
+          const notificationTemplates = state.notificationTemplates.map((template) =>
+            template.id === templateId ? { ...template, ...patch } : template,
+          );
+          return {
+            notificationTemplates,
+            companySettings: {
+              ...state.companySettings,
+              notificationTemplates,
+            },
+          };
+        });
+        await updateTemplateRemote(templateId, patch, currentUser(get));
+      },
+      deleteNotificationTemplate: async (templateId) => {
+        set((state) => {
+          const notificationTemplates = state.notificationTemplates.filter(
+            (template) => template.id !== templateId,
+          );
+          return {
+            notificationTemplates,
+            companySettings: {
+              ...state.companySettings,
+              notificationTemplates,
+            },
+          };
+        });
+        await deleteTemplateRemote(templateId);
+      },
+      addAutomationRule: async (automation) => {
+        set((state) => ({
+          automationRules: [automation, ...state.automationRules],
+        }));
+        await createAutomationRemote(automation, currentUser(get));
+      },
+      updateAutomationRule: async (automationId, patch) => {
+        set((state) => ({
+          automationRules: state.automationRules.map((automation) =>
+            automation.id === automationId ? { ...automation, ...patch } : automation,
+          ),
+        }));
+        await updateAutomationRemote(automationId, patch, currentUser(get));
+      },
+      deleteAutomationRule: async (automationId) => {
+        set((state) => ({
+          automationRules: state.automationRules.filter((automation) => automation.id !== automationId),
+        }));
+        await deleteAutomationRemote(automationId);
+      },
+      markNotificationRead: async (notificationId) => {
+        const uid = get().authUser?.uid;
+        if (!uid) return;
+        set((state) => ({
+          notifications: state.notifications.map((notification) =>
+            notification.id === notificationId && !notification.readBy.includes(uid)
+              ? { ...notification, readBy: [...notification.readBy, uid] }
+              : notification,
+          ),
+        }));
+        await markNotificationReadRemote(notificationId);
+      },
+      markAllNotificationsRead: async () => {
+        const uid = get().authUser?.uid;
+        if (!uid) return;
+        set((state) => ({
+          notifications: state.notifications.map((notification) =>
+            notification.readBy.includes(uid)
+              ? notification
+              : { ...notification, readBy: [...notification.readBy, uid] },
+          ),
+        }));
+        await markAllNotificationsReadRemote();
+      },
       setVisualiserDraft: (patch) =>
         set((state) => ({
           visualiserDraft: {
@@ -239,24 +1032,28 @@ export const useTailoredStore = create<TailoredStore>()(
         const session: VisualiserSession = {
           id: sessionId,
           roomPhotoUrl: state.visualiserDraft.roomPhotoUrl,
+          roomPhotoPath: state.visualiserDraft.roomPhotoPath,
           roomName: state.visualiserDraft.roomName || 'Saved room',
           placedItems: clone(state.visualiserDraft.items),
           submittedAt: new Date().toISOString(),
           status: 'New',
         };
         set((current) => ({
-          visualiserSessions: [session, ...current.visualiserSessions],
+          localVisualiserSessions: [session, ...current.localVisualiserSessions],
         }));
         return sessionId;
       },
       loadVisualiserSession: (sessionId) => {
-        const session = get().visualiserSessions.find((item) => item.id === sessionId);
+        const session =
+          get().localVisualiserSessions.find((item) => item.id === sessionId) ??
+          get().visualiserSessions.find((item) => item.id === sessionId);
         if (!session) {
           return;
         }
         set({
           visualiserDraft: {
             roomPhotoUrl: session.roomPhotoUrl,
+            roomPhotoPath: session.roomPhotoPath,
             roomName: session.roomName,
             items: clone(session.placedItems),
             gridEnabled: true,
@@ -264,13 +1061,15 @@ export const useTailoredStore = create<TailoredStore>()(
           },
         });
       },
-      updateVisualiserSessionStatus: (sessionId, status) =>
+      updateVisualiserSessionStatus: async (sessionId, status) => {
         set((state) => ({
           visualiserSessions: state.visualiserSessions.map((session) =>
             session.id === sessionId ? { ...session, status } : session,
           ),
-        })),
-      createVisualiserSubmission: (payload) => {
+        }));
+        await updateVisualiserSessionStatusRemote(sessionId, status, currentUser(get));
+      },
+      createVisualiserSubmission: async (payload) => {
         const state = get();
         if (!state.visualiserDraft.roomPhotoUrl) {
           throw new Error('A room photo is required before submitting the visualiser.');
@@ -278,9 +1077,29 @@ export const useTailoredStore = create<TailoredStore>()(
 
         const sessionId = generateId('vis');
         const enquiryId = generateId('enq');
+        let roomPhotoUrl = state.visualiserDraft.roomPhotoUrl;
+        let roomPhotoPath = state.visualiserDraft.roomPhotoPath ?? null;
+
+        if (roomPhotoUrl.startsWith('data:')) {
+          const upload = await uploadPublicSubmissionDataUrl(
+            roomPhotoUrl,
+            'visualiser',
+            sessionId,
+            `${state.visualiserDraft.roomName || 'room'}.jpg`,
+          );
+          roomPhotoUrl = upload.url;
+          roomPhotoPath = upload.path;
+        }
+
+        const teamMembers = get().teamMembers;
+        const defaultOwner =
+          teamMembers.find((member) => member.role === 'Sales' || member.role === 'Admin' || member.role === 'Owner')?.id;
+        const defaultDesigner =
+          teamMembers.find((member) => member.role === 'Designer' || member.role === 'Admin' || member.role === 'Owner')?.id;
         const session: VisualiserSession = {
           id: sessionId,
-          roomPhotoUrl: state.visualiserDraft.roomPhotoUrl,
+          roomPhotoUrl,
+          roomPhotoPath,
           roomName: state.visualiserDraft.roomName || 'Custom room upload',
           placedItems: clone(state.visualiserDraft.items),
           submittedAt: new Date().toISOString(),
@@ -288,6 +1107,7 @@ export const useTailoredStore = create<TailoredStore>()(
           clientName: payload.clientName,
           phone: payload.phone,
           email: payload.email,
+          assignedTo: defaultOwner,
         };
         const productIds = [...new Set(session.placedItems.map((item) => item.productId))];
         const productNames = [...new Set(session.placedItems.map((item) => item.productName))];
@@ -300,45 +1120,44 @@ export const useTailoredStore = create<TailoredStore>()(
           productIds,
           productNames,
           status: payload.preferredDateTime ? 'Consultation Scheduled' : 'New',
-          assignedTo: 'team-amos',
+          assignedTo: defaultOwner,
           channel: 'Visualiser',
           createdAt: new Date().toISOString(),
           notes: [
             {
               id: generateId('note'),
               author: 'System',
-              message: payload.notes || `Visualiser arrangement submitted with ${session.placedItems.length} pieces.`,
+              message:
+                payload.notes ||
+                `Visualiser arrangement submitted with ${session.placedItems.length} pieces.`,
               createdAt: new Date().toISOString(),
             },
           ],
           visualiserSessionId: sessionId,
-          visualiserScreenshot: session.roomPhotoUrl,
+          visualiserScreenshot: roomPhotoUrl,
         };
 
-        let consultation: Consultation | undefined;
-        if (payload.preferredDateTime) {
-          consultation = {
-            id: generateId('con'),
-            enquiryId,
-            clientName: payload.clientName,
-            phone: payload.phone,
-            email: payload.email,
-            scheduledAt: payload.preferredDateTime,
-            assignedDesigner: 'team-mwila',
-            status: 'Scheduled',
-            source: 'visualiser',
-            notes: payload.notes || '',
-            visualiserSessionId: sessionId,
-          };
-        }
+        const consultation =
+          payload.preferredDateTime
+            ? {
+                id: generateId('con'),
+                enquiryId,
+                clientName: payload.clientName,
+                phone: payload.phone,
+                email: payload.email,
+                scheduledAt: payload.preferredDateTime,
+                assignedDesigner: defaultDesigner ?? '',
+                status: 'Scheduled' as const,
+                source: 'visualiser' as const,
+                notes: payload.notes || '',
+                visualiserSessionId: sessionId,
+              }
+            : undefined;
 
-        set((current) => ({
-          visualiserSessions: [session, ...current.visualiserSessions],
-          enquiries: [enquiry, ...current.enquiries],
-          consultations: consultation ? [consultation, ...current.consultations] : current.consultations,
+        await createVisualiserSubmissionRemote(session, enquiry, consultation, currentUser(get));
+        set({
           visualiserDraft: clone(defaultVisualiserDraft),
-        }));
-
+        });
         return { enquiryId, sessionId };
       },
       setConfiguratorDraft: (patch) =>
@@ -353,10 +1172,43 @@ export const useTailoredStore = create<TailoredStore>()(
           },
         })),
       resetConfiguratorDraft: () => set({ configuratorDraft: clone(defaultConfiguratorDraft) }),
-      createQuoteRequest: (payload) => {
+      createQuoteRequest: async (payload) => {
         const state = get();
         const selectedProduct = state.products.find((product) => product.id === state.configuratorDraft.productId);
         const enquiryId = generateId('enq');
+        let customDesignImage = state.configuratorDraft.customDesignImage;
+        let customDesignImagePath = state.configuratorDraft.customDesignImagePath ?? null;
+        let uploadedSpacePhoto = state.configuratorDraft.uploadedSpacePhoto;
+        let uploadedSpacePhotoPath = state.configuratorDraft.uploadedSpacePhotoPath ?? null;
+
+        if (customDesignImage?.startsWith('data:')) {
+          const upload = await uploadPublicSubmissionDataUrl(
+            customDesignImage,
+            'configurator',
+            `${enquiryId}-custom`,
+            'custom-design.jpg',
+          );
+          customDesignImage = upload.url;
+          customDesignImagePath = upload.path;
+        }
+
+        if (uploadedSpacePhoto?.startsWith('data:')) {
+          const upload = await uploadPublicSubmissionDataUrl(
+            uploadedSpacePhoto,
+            'configurator',
+            `${enquiryId}-space`,
+            'space-photo.jpg',
+          );
+          uploadedSpacePhoto = upload.url;
+          uploadedSpacePhotoPath = upload.path;
+        }
+
+        const teamMembers = get().teamMembers;
+        const defaultOwner =
+          teamMembers.find((member) => member.role === 'Sales' || member.role === 'Admin' || member.role === 'Owner')?.id;
+        const defaultDesigner =
+          teamMembers.find((member) => member.role === 'Designer' || member.role === 'Admin' || member.role === 'Owner')?.id;
+
         const configurationData = {
           productId: selectedProduct?.id,
           productName: selectedProduct?.name || 'Custom Design',
@@ -367,9 +1219,11 @@ export const useTailoredStore = create<TailoredStore>()(
           quantity: state.configuratorDraft.quantity,
           roomDimensions: state.configuratorDraft.roomDimensions,
           notes: state.configuratorDraft.notes,
-          customDesignImage: state.configuratorDraft.customDesignImage,
+          customDesignImage,
+          customDesignImagePath,
           customDesignNotes: state.configuratorDraft.customDesignNotes,
-          uploadedSpacePhoto: state.configuratorDraft.uploadedSpacePhoto,
+          uploadedSpacePhoto,
+          uploadedSpacePhotoPath,
           sizeLabel: state.configuratorDraft.sizePresetId || state.configuratorDraft.dimensionMode,
         };
 
@@ -382,7 +1236,7 @@ export const useTailoredStore = create<TailoredStore>()(
           productIds: selectedProduct ? [selectedProduct.id] : [],
           productNames: [configurationData.productName],
           status: payload?.preferredDateTime ? 'Consultation Scheduled' : 'New',
-          assignedTo: 'team-mwila',
+          assignedTo: defaultOwner,
           channel: 'Configurator',
           createdAt: new Date().toISOString(),
           preferredContactTime: state.configuratorDraft.preferredContactTime,
@@ -397,7 +1251,7 @@ export const useTailoredStore = create<TailoredStore>()(
           configurationData,
         };
 
-        const consultation: Consultation | undefined =
+        const consultation =
           payload?.preferredDateTime
             ? {
                 id: generateId('con'),
@@ -406,24 +1260,25 @@ export const useTailoredStore = create<TailoredStore>()(
                 phone: state.configuratorDraft.phone,
                 email: state.configuratorDraft.email,
                 scheduledAt: payload.preferredDateTime,
-                assignedDesigner: 'team-jane',
-                status: 'Scheduled',
+                assignedDesigner: defaultDesigner ?? '',
+                status: 'Scheduled' as const,
                 source: 'configurator' as const,
                 notes: state.configuratorDraft.notes,
               }
             : undefined;
 
-        set((current) => ({
-          enquiries: [enquiry, ...current.enquiries],
-          consultations: consultation ? [consultation, ...current.consultations] : current.consultations,
-          configuratorDraft: clone(defaultConfiguratorDraft),
-        }));
-
+        await createQuoteRequestRemote(enquiry, consultation, currentUser(get));
+        set({ configuratorDraft: clone(defaultConfiguratorDraft) });
         return { enquiryId };
       },
-      createConsultationRequest: (payload) => {
+      createConsultationRequest: async (payload) => {
         const enquiryId = generateId('enq');
         const consultationId = generateId('con');
+        const teamMembers = get().teamMembers;
+        const defaultOwner =
+          teamMembers.find((member) => member.role === 'Sales' || member.role === 'Admin' || member.role === 'Owner')?.id;
+        const defaultDesigner =
+          teamMembers.find((member) => member.role === 'Designer' || member.role === 'Admin' || member.role === 'Owner')?.id;
         const enquiry: Enquiry = {
           id: enquiryId,
           type: payload.source,
@@ -433,7 +1288,7 @@ export const useTailoredStore = create<TailoredStore>()(
           productIds: payload.productIds ?? [],
           productNames: payload.productNames ?? [],
           status: 'Consultation Scheduled',
-          assignedTo: 'team-amos',
+          assignedTo: defaultOwner,
           channel: payload.source === 'consultation' ? 'Consultation Form' : payload.source,
           createdAt: new Date().toISOString(),
           preferredContactTime: payload.preferredDateTime,
@@ -453,92 +1308,151 @@ export const useTailoredStore = create<TailoredStore>()(
           phone: payload.phone,
           email: payload.email,
           scheduledAt: payload.preferredDateTime,
-          assignedDesigner: 'team-jane',
+          assignedDesigner: defaultDesigner ?? '',
           status: 'Scheduled',
           source: payload.source,
           notes: payload.notes,
         };
-        set((state) => ({
-          enquiries: [enquiry, ...state.enquiries],
-          consultations: [consultation, ...state.consultations],
-        }));
+        await createConsultationRequestRemote(enquiry, consultation, currentUser(get));
         return { enquiryId, consultationId };
       },
-      addEnquiry: (enquiry) => set((state) => ({ enquiries: [enquiry, ...state.enquiries] })),
-      updateEnquiry: (enquiryId, patch) =>
+      addEnquiry: async (enquiry) => {
+        await createEnquiryRemote(enquiry, currentUser(get));
+      },
+      updateEnquiry: async (enquiryId, patch) => {
         set((state) => ({
           enquiries: state.enquiries.map((enquiry) =>
             enquiry.id === enquiryId ? { ...enquiry, ...patch } : enquiry,
           ),
-        })),
-      addEnquiryNote: (enquiryId, author, message) =>
+        }));
+        await updateEnquiryRemote(enquiryId, patch, currentUser(get));
+      },
+      deleteEnquiry: async (enquiryId) => {
         set((state) => ({
-          enquiries: state.enquiries.map((enquiry) =>
-            enquiry.id === enquiryId
-              ? {
-                  ...enquiry,
-                  notes: [
-                    ...enquiry.notes,
-                    {
-                      id: generateId('note'),
-                      author,
-                      message,
-                      createdAt: new Date().toISOString(),
-                    },
-                  ],
-                }
-              : enquiry,
-          ),
-        })),
-      assignEnquiry: (enquiryId, teamMemberId) =>
+          enquiries: state.enquiries.filter((enquiry) => enquiry.id !== enquiryId),
+        }));
+        await deleteEnquiryRemote(enquiryId);
+      },
+      addEnquiryNote: async (enquiryId, author, message) => {
+        const enquiry = get().enquiries.find((item) => item.id === enquiryId);
+        if (!enquiry) return;
+        const nextNotes = [
+          ...enquiry.notes,
+          {
+            id: generateId('note'),
+            author,
+            message,
+            createdAt: new Date().toISOString(),
+          },
+        ];
         set((state) => ({
-          enquiries: state.enquiries.map((enquiry) =>
-            enquiry.id === enquiryId ? { ...enquiry, assignedTo: teamMemberId } : enquiry,
+          enquiries: state.enquiries.map((item) =>
+            item.id === enquiryId ? { ...item, notes: nextNotes } : item,
           ),
-        })),
-      updateConsultation: (consultationId, patch) =>
+        }));
+        await addEnquiryNoteRemote(enquiryId, nextNotes, currentUser(get));
+      },
+      assignEnquiry: async (enquiryId, teamMemberId) => {
+        await get().updateEnquiry(enquiryId, { assignedTo: teamMemberId });
+      },
+      addConsultation: async (consultation) => {
+        await createConsultationRemote(consultation, currentUser(get));
+      },
+      updateConsultation: async (consultationId, patch) => {
         set((state) => ({
           consultations: state.consultations.map((consultation) =>
             consultation.id === consultationId ? { ...consultation, ...patch } : consultation,
           ),
-        })),
-      moveProductionOrder: (orderId, status) =>
+        }));
+        await updateConsultationRemote(consultationId, patch, currentUser(get));
+      },
+      deleteConsultation: async (consultationId) => {
+        set((state) => ({
+          consultations: state.consultations.filter(
+            (consultation) => consultation.id !== consultationId,
+          ),
+        }));
+        await deleteConsultationRemote(consultationId);
+      },
+      deleteVisualiserSession: async (sessionId) => {
+        set((state) => ({
+          visualiserSessions: state.visualiserSessions.filter((session) => session.id !== sessionId),
+        }));
+        await deleteVisualiserSessionRemote(sessionId);
+      },
+      addProductionOrder: async (order) => {
+        set((state) => ({
+          productionOrders: [order, ...state.productionOrders],
+        }));
+        await createProductionOrderRemote(order, currentUser(get));
+      },
+      updateProductionOrder: async (orderId, patch) => {
+        set((state) => ({
+          productionOrders: state.productionOrders.map((order) =>
+            order.id === orderId ? { ...order, ...patch } : order,
+          ),
+        }));
+        await updateProductionOrderRemote(orderId, patch, currentUser(get));
+      },
+      moveProductionOrder: async (orderId, status) => {
         set((state) => ({
           productionOrders: state.productionOrders.map((order) =>
             order.id === orderId ? { ...order, status } : order,
           ),
-        })),
-      updateInventoryItem: (inventoryId, patch) =>
+        }));
+        await moveProductionOrderRemote(orderId, status, currentUser(get));
+      },
+      deleteProductionOrder: async (orderId) => {
+        set((state) => ({
+          productionOrders: state.productionOrders.filter((order) => order.id !== orderId),
+        }));
+        await deleteProductionOrderRemote(orderId);
+      },
+      addInventoryItem: async (item) => {
+        set((state) => ({
+          inventoryItems: [item, ...state.inventoryItems],
+        }));
+        await createInventoryItemRemote(item, currentUser(get));
+      },
+      updateInventoryItem: async (inventoryId, patch) => {
         set((state) => ({
           inventoryItems: state.inventoryItems.map((item) =>
             item.id === inventoryId ? { ...item, ...patch } : item,
           ),
-        })),
-      addAccountingRecord: (record) =>
-        set((state) => ({ accountingRecords: [record, ...state.accountingRecords] })),
-      updateAccountingRecord: (recordId, patch) =>
+        }));
+        await updateInventoryItemRemote(inventoryId, patch, currentUser(get));
+      },
+      deleteInventoryItem: async (inventoryId) => {
+        set((state) => ({
+          inventoryItems: state.inventoryItems.filter((item) => item.id !== inventoryId),
+        }));
+        await deleteInventoryItemRemote(inventoryId);
+      },
+      addAccountingRecord: async (record) => {
+        await createAccountingRecordRemote(record, currentUser(get));
+      },
+      updateAccountingRecord: async (recordId, patch) => {
         set((state) => ({
           accountingRecords: state.accountingRecords.map((record) =>
             record.id === recordId ? { ...record, ...patch } : record,
           ),
-        })),
+        }));
+        await updateAccountingRecordRemote(recordId, patch, currentUser(get));
+      },
+      deleteAccountingRecord: async (recordId) => {
+        set((state) => ({
+          accountingRecords: state.accountingRecords.filter((record) => record.id !== recordId),
+        }));
+        await deleteAccountingRecordRemote(recordId);
+      },
     }),
     {
       name: 'tailored-manor-store',
       partialize: (state) => ({
-        isAdminAuthenticated: state.isAdminAuthenticated,
-        products: state.products,
-        materials: state.materials,
-        teamMembers: state.teamMembers,
-        companySettings: state.companySettings,
-        enquiries: state.enquiries,
-        visualiserSessions: state.visualiserSessions,
-        consultations: state.consultations,
-        productionOrders: state.productionOrders,
-        inventoryItems: state.inventoryItems,
-        accountingRecords: state.accountingRecords,
+        activeAdminId: state.activeAdminId,
         visualiserDraft: state.visualiserDraft,
         configuratorDraft: state.configuratorDraft,
+        localVisualiserSessions: state.localVisualiserSessions,
       }),
       merge: (persistedState, currentState) => ({
         ...currentState,

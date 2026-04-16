@@ -2,14 +2,16 @@ import { type FormEvent, type ReactNode, useState } from 'react';
 import { MapPin, MessageCircle, Phone } from 'lucide-react';
 import Button from '../components/Button';
 import { InputField, PageHero, SectionIntro, TextAreaField } from '../components/primitives';
-import { companySettings, asset } from '../data/content';
+import { asset } from '../config/site';
 import { generateId } from '../lib/utils';
 
 import { useTailoredStore } from '../store/useTailoredStore';
 
 export default function Contact() {
   const addEnquiry = useTailoredStore((state) => state.addEnquiry);
+  const companySettings = useTailoredStore((state) => state.companySettings);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [form, setForm] = useState({
     clientName: '',
     phone: '',
@@ -17,29 +19,35 @@ export default function Contact() {
     notes: '',
   });
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    addEnquiry({
-      id: generateId('enq'),
-      type: 'direct',
-      clientName: form.clientName,
-      phone: form.phone,
-      email: form.email,
-      productIds: [],
-      productNames: [],
-      status: 'New',
-      channel: 'Contact Form',
-      createdAt: new Date().toISOString(),
-      notes: [
-        {
-          id: generateId('note'),
-          author: 'System',
-          message: form.notes || 'General contact request submitted.',
-          createdAt: new Date().toISOString(),
-        },
-      ],
-    });
-    setSubmitted(true);
+    setSubmitError('');
+    try {
+      await addEnquiry({
+        id: generateId('enq'),
+        type: 'direct',
+        clientName: form.clientName,
+        phone: form.phone,
+        email: form.email,
+        productIds: [],
+        productNames: [],
+        status: 'New',
+        channel: 'Contact Form',
+        createdAt: new Date().toISOString(),
+        notes: [
+          {
+            id: generateId('note'),
+            author: 'System',
+            message: form.notes || 'General contact request submitted.',
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      });
+      setSubmitted(true);
+    } catch (error) {
+      console.error(error);
+      setSubmitError('We could not send your message right now. Please try again.');
+    }
   };
 
   return (
@@ -96,7 +104,7 @@ export default function Contact() {
                 </div>
               </div>
             ) : (
-              <form className="space-y-6" onSubmit={handleSubmit}>
+              <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
                 <SectionIntro
                   eyebrow="Direct message"
                   title="Tell us about your space"
@@ -114,6 +122,7 @@ export default function Contact() {
                   value={form.notes}
                   onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
                 />
+                {submitError ? <p className="rounded-[1rem] border border-tm-error/20 bg-tm-error/10 px-4 py-3 font-dm text-sm text-tm-error">{submitError}</p> : null}
                 <Button type="submit" variant="minimal" className="bg-tm-obsidian hover:bg-tm-obsidian hover:text-tm-cream">
                   Send enquiry
                 </Button>

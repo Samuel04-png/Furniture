@@ -1,10 +1,10 @@
 import { PageHero, SectionIntro } from '../components/primitives';
 import { useTailoredStore } from '../store/useTailoredStore';
-import { asset } from '../data/content';
+import { asset } from '../config/site';
 
 
 export default function About() {
-  const team = useTailoredStore((state) => state.teamMembers);
+  const team = useTailoredStore((state) => state.publicTeamMembers);
 
   return (
     <div className="bg-tm-off-white">

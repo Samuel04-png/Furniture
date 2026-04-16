@@ -3,6 +3,9 @@ import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-route
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import GlobalFloatingUI from './components/GlobalFloatingUI';
+import { useTailoredStore } from './store/useTailoredStore';
+import { initAnalytics } from './lib/firebase';
+import { cn } from './lib/utils';
 
 const Home = lazy(() => import('./pages/Home'));
 const Collections = lazy(() => import('./pages/Collections'));
@@ -29,12 +32,42 @@ function ScrollToTop() {
 function AppShell() {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
+  const loadProducts = useTailoredStore((state) => state.loadProducts);
+  const initAuth = useTailoredStore((state) => state.initAuth);
+
+  useEffect(() => {
+    initAuth();
+  }, [initAuth]);
+
+  useEffect(() => {
+    void loadProducts();
+  }, [loadProducts]);
+
+  useEffect(() => {
+    void initAnalytics();
+  }, []);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById('root');
+
+    html.classList.toggle('tm-admin-lock', isAdmin);
+    body.classList.toggle('tm-admin-lock', isAdmin);
+    root?.classList.toggle('tm-admin-lock', isAdmin);
+
+    return () => {
+      html.classList.remove('tm-admin-lock');
+      body.classList.remove('tm-admin-lock');
+      root?.classList.remove('tm-admin-lock');
+    };
+  }, [isAdmin]);
 
   return (
-    <div className="min-h-screen bg-tm-off-white text-tm-obsidian">
+    <div className={cn(isAdmin ? 'h-screen overflow-hidden bg-[#ece3d6] text-tm-obsidian' : 'min-h-screen bg-tm-off-white text-tm-obsidian')}>
       <ScrollToTop />
       {!isAdmin && <Navbar />}
-      <main>
+      <main className={cn(isAdmin && 'h-full overflow-hidden')}>
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Home />} />
@@ -62,7 +95,7 @@ function AppShell() {
         </Suspense>
       </main>
       {!isAdmin && <Footer />}
-      <GlobalFloatingUI />
+      {!isAdmin && <GlobalFloatingUI />}
     </div>
   );
 }

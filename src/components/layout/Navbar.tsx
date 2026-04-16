@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
-import { navLinks } from '../../data/content';
+import { navLinks } from '../../config/site';
 import { cn } from '../../lib/utils';
 import Button from '../Button';
 import { LogoMark } from '../primitives';
