@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   AdminButton,
   AdminEmptyState,
@@ -14,6 +14,7 @@ import {
   AdminToolbar,
 } from '../../../components/admin/AdminUi';
 import { canPerform } from '../../../lib/adminAccess';
+import { getAccountingStatusLabel } from '../../../lib/invoices';
 import { formatCurrency, formatDate, generateId } from '../../../lib/utils';
 import { useTailoredStore } from '../../../store/useTailoredStore';
 import type { AccountingRecord, AccountingStatus, AccountingType } from '../../../types';
@@ -44,6 +45,10 @@ export function FinanceWorkspacePage() {
   const [form, setForm] = useState(createDefaultForm(tab));
   const canEditFinance = canPerform('finance.edit', activeMember?.role);
   const canDeleteFinance = canPerform('system.manage', activeMember?.role);
+
+  if (tab === 'invoices') {
+    return <Navigate to="/admin/finance/invoices" replace />;
+  }
 
   const resetForm = () => setForm(createDefaultForm(tab));
   const clearAction = () => {
@@ -119,7 +124,7 @@ export function FinanceWorkspacePage() {
                 meta={`Due ${formatDate(record.dueDate)}`}
                 active={selectedRecord?.id === record.id}
                 onClick={() => setSelectedRecordId(record.id)}
-                status={<AdminStatusChip label={record.status} tone={toneForFinance(record.status)} />}
+                status={<AdminStatusChip label={getAccountingStatusLabel(record)} tone={toneForFinance(getAccountingStatusLabel(record))} />}
               />
             ))
           ) : (
@@ -154,16 +159,16 @@ export function FinanceWorkspacePage() {
                 }
               />
               <div className="grid gap-4 md:grid-cols-3">
-                <InfoBlock label="Status" value={selectedRecord.status} />
+                <InfoBlock label="Status" value={getAccountingStatusLabel(selectedRecord)} />
                 <InfoBlock label="Due date" value={formatDate(selectedRecord.dueDate)} />
                 <InfoBlock label="Record type" value={selectedRecord.type} />
               </div>
               <div className="mt-6 rounded-[1.3rem] border border-black/7 bg-[#fbf7f1] p-4">
                 <p className="text-[0.68rem] font-medium uppercase tracking-[0.22em] text-tm-warm-gray">Next best action</p>
                 <p className="mt-3 text-sm leading-6 text-tm-warm-gray">
-                  {selectedRecord.status === 'Overdue'
+                  {getAccountingStatusLabel(selectedRecord) === 'Overdue'
                     ? 'Send a reminder today and document the expected receipt date so operations knows whether release can continue.'
-                    : selectedRecord.status === 'Issued'
+                    : getAccountingStatusLabel(selectedRecord) === 'Unpaid'
                       ? 'Confirm the client has seen the record and set a follow-up checkpoint.'
                       : 'Record settled. Keep the linked client and job view clean for reporting.'}
                 </p>

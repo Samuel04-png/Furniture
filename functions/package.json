@@ -7,7 +7,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "manifest": "node ./scripts/generateManifest.js"
   },
   "dependencies": {
     "firebase-admin": "^13.8.0",

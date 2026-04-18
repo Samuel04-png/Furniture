@@ -3,7 +3,7 @@ build/
 dist/
 coverage/
 .firebase/
-functions/functions.yaml\ 
+functions/functions.yaml
 .DS_Store
 *.log
 .env*

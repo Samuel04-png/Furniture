@@ -1,16 +1,53 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.auditFinanceWrites = exports.auditEnquiryWrites = exports.notifyJobAutomations = exports.notifyInventoryAutomations = exports.notifyFinanceAutomations = exports.notifyConsultationAutomations = exports.notifyEnquiryAutomations = exports.cleanupDeletedTeamProfileFiles = exports.cleanupDeletedPortfolioFiles = exports.cleanupDeletedTestimonialFiles = exports.cleanupDeletedSampleRoomFiles = exports.cleanupDeletedMaterialFiles = exports.cleanupDeletedProductFiles = exports.syncPublishedProduct = exports.syncTeamClaims = exports.markAllNotificationsRead = exports.markNotificationRead = exports.disableTeamMember = exports.backfillPublishedProducts = exports.createTeamMember = void 0;
-const app_1 = require("firebase-admin/app");
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-functions/v2/firestore");
-const firebase_functions_1 = require("firebase-functions");
+const logger = __importStar(require("firebase-functions/logger"));
 const storageBucket = process.env.FIREBASE_STORAGE_BUCKET ||
     process.env.STORAGE_BUCKET ||
     'tailored-manor.firebasestorage.app';
-(0, app_1.initializeApp)({
-    storageBucket,
-});
+function ensureAdminApp() {
+    const { getApps, initializeApp } = require('firebase-admin/app');
+    if (!getApps().length) {
+        initializeApp({
+            storageBucket,
+        });
+    }
+}
 function createLazyProxy(factory) {
     return new Proxy({}, {
         get(_target, property) {
@@ -23,9 +60,18 @@ function createLazyProxy(factory) {
 function fieldValue() {
     return require('firebase-admin/firestore').FieldValue;
 }
-const auth = createLazyProxy(() => require('firebase-admin/auth').getAuth());
-const db = createLazyProxy(() => require('firebase-admin/firestore').getFirestore());
-const bucket = createLazyProxy(() => require('firebase-admin/storage').getStorage().bucket(storageBucket));
+const auth = createLazyProxy(() => {
+    ensureAdminApp();
+    return require('firebase-admin/auth').getAuth();
+});
+const db = createLazyProxy(() => {
+    ensureAdminApp();
+    return require('firebase-admin/firestore').getFirestore();
+});
+const bucket = createLazyProxy(() => {
+    ensureAdminApp();
+    return require('firebase-admin/storage').getStorage().bucket(storageBucket);
+});
 const region = process.env.FUNCTIONS_REGION || 'africa-south1';
 const automationEventConfig = {
     'lead.created': {
@@ -91,6 +137,10 @@ function normalizeRole(role) {
         accountant: 'Accountant',
         'read only': 'Read Only',
         readonly: 'Read Only',
+        operations: 'Admin',
+        workshop: 'Production Manager',
+        production: 'Production Manager',
+        inventory: 'Inventory Manager',
     };
     return canonicalRoles[value.toLowerCase()] || 'Read Only';
 }
@@ -105,23 +155,53 @@ function createInitials(name) {
 function randomPassword() {
     return `TM-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36).slice(-4)}`;
 }
-function requireAdmin(authData) {
-    if (!authData) {
+async function resolveTeamAccess(authData) {
+    if (!authData?.uid) {
+        return {
+            uid: null,
+            role: 'Read Only',
+            status: null,
+            approved: false,
+        };
+    }
+    const tokenRole = normalizeRole(authData.token?.role);
+    const tokenApproved = authData.token?.approved === true;
+    const tokenDisabled = authData.token?.disabled === true;
+    const userSnapshot = await db.collection('users').doc(authData.uid).get();
+    const userData = userSnapshot.exists ? userSnapshot.data() : undefined;
+    const status = userData?.status || null;
+    const disabled = tokenDisabled || status === 'Disabled';
+    return {
+        uid: authData.uid,
+        role: userData?.role ? normalizeRole(userData.role) : tokenRole,
+        status,
+        approved: !disabled && (tokenApproved || userSnapshot.exists),
+    };
+}
+async function requireAdmin(authData) {
+    if (!authData?.uid) {
         throw new https_1.HttpsError('unauthenticated', 'Authentication is required.');
     }
-    const role = normalizeRole(authData.token?.role);
+    const { role, approved } = await resolveTeamAccess(authData);
+    if (!approved) {
+        throw new https_1.HttpsError('permission-denied', 'This account is not approved for admin access.');
+    }
     if (role !== 'Owner' && role !== 'Admin') {
         throw new https_1.HttpsError('permission-denied', 'Only owners and admins can perform this action.');
     }
     return role;
 }
-function requireSignedIn(authData) {
+async function requireSignedIn(authData) {
     if (!authData?.uid) {
         throw new https_1.HttpsError('unauthenticated', 'Authentication is required.');
     }
+    const { role, approved } = await resolveTeamAccess(authData);
+    if (!approved) {
+        throw new https_1.HttpsError('permission-denied', 'This account is not approved for admin access.');
+    }
     return {
         uid: authData.uid,
-        role: normalizeRole(authData.token?.role),
+        role,
     };
 }
 async function writeAuditLog(module, recordId, action, payload) {
@@ -276,7 +356,7 @@ async function syncPublishedProductRecord(productId, after) {
     return true;
 }
 exports.createTeamMember = (0, https_1.onCall)({ region }, async (request) => {
-    requireAdmin(request.auth || undefined);
+    await requireAdmin(request.auth || undefined);
     const name = String(request.data?.name || '').trim();
     const email = String(request.data?.email || '').trim().toLowerCase();
     const phone = String(request.data?.phone || '').trim();
@@ -299,7 +379,7 @@ exports.createTeamMember = (0, https_1.onCall)({ region }, async (request) => {
         password: temporaryPassword,
         displayName: name,
     });
-    await auth.setCustomUserClaims(userRecord.uid, { role });
+    await auth.setCustomUserClaims(userRecord.uid, { role, approved: true, disabled: false });
     const userDoc = {
         uid: userRecord.uid,
         name,
@@ -344,7 +424,7 @@ exports.createTeamMember = (0, https_1.onCall)({ region }, async (request) => {
     };
 });
 exports.backfillPublishedProducts = (0, https_1.onCall)({ region }, async (request) => {
-    requireAdmin(request.auth || undefined);
+    await requireAdmin(request.auth || undefined);
     const snapshot = await db.collection('products').get();
     let publishedCount = 0;
     for (const docSnap of snapshot.docs) {
@@ -364,12 +444,13 @@ exports.backfillPublishedProducts = (0, https_1.onCall)({ region }, async (reque
     };
 });
 exports.disableTeamMember = (0, https_1.onCall)({ region }, async (request) => {
-    requireAdmin(request.auth || undefined);
+    await requireAdmin(request.auth || undefined);
     const uid = String(request.data?.uid || '').trim();
     if (!uid) {
         throw new https_1.HttpsError('invalid-argument', 'A user id is required.');
     }
     await auth.updateUser(uid, { disabled: true });
+    await auth.setCustomUserClaims(uid, { role: 'Read Only', approved: false, disabled: true });
     await db.collection('users').doc(uid).set({
         status: 'Disabled',
         updatedAt: fieldValue().serverTimestamp(),
@@ -382,7 +463,7 @@ exports.disableTeamMember = (0, https_1.onCall)({ region }, async (request) => {
     return { success: true };
 });
 exports.markNotificationRead = (0, https_1.onCall)({ region }, async (request) => {
-    const { uid, role } = requireSignedIn(request.auth || undefined);
+    const { uid, role } = await requireSignedIn(request.auth || undefined);
     const notificationId = String(request.data?.notificationId || '').trim();
     if (!notificationId) {
         throw new https_1.HttpsError('invalid-argument', 'A notification id is required.');
@@ -406,7 +487,7 @@ exports.markNotificationRead = (0, https_1.onCall)({ region }, async (request) =
     return { success: true };
 });
 exports.markAllNotificationsRead = (0, https_1.onCall)({ region }, async (request) => {
-    const { uid, role } = requireSignedIn(request.auth || undefined);
+    const { uid, role } = await requireSignedIn(request.auth || undefined);
     const snapshot = await db.collection('notifications').where('targetRoles', 'array-contains', role).get();
     const batch = db.batch();
     let updatedCount = 0;
@@ -435,8 +516,13 @@ exports.syncTeamClaims = (0, firestore_1.onDocumentWritten)({ region, document: 
         return;
     }
     const role = normalizeRole(after.role);
-    await auth.setCustomUserClaims(uid, { role });
-    if (after.isPublicProfile) {
+    const disabled = after.status === 'Disabled';
+    await auth.setCustomUserClaims(uid, {
+        role: disabled ? 'Read Only' : role,
+        approved: !disabled,
+        disabled,
+    });
+    if (after.isPublicProfile && !disabled) {
         await db.collection('teamProfiles').doc(uid).set({
             id: uid,
             uid,
@@ -483,7 +569,7 @@ exports.cleanupDeletedProductFiles = (0, firestore_1.onDocumentDeleted)({ region
         await deletePrefix(`products/${productId}/`);
     }
     catch (error) {
-        firebase_functions_1.logger.error('Failed to cleanup deleted product files', { productId, error });
+        logger.error('Failed to cleanup deleted product files', { productId, error });
     }
 });
 exports.cleanupDeletedMaterialFiles = (0, firestore_1.onDocumentDeleted)({ region, document: 'materials/{materialId}' }, async (event) => {
@@ -491,7 +577,7 @@ exports.cleanupDeletedMaterialFiles = (0, firestore_1.onDocumentDeleted)({ regio
         await deletePrefix(`website/materials/${event.params.materialId}/`);
     }
     catch (error) {
-        firebase_functions_1.logger.error('Failed to cleanup deleted material files', {
+        logger.error('Failed to cleanup deleted material files', {
             materialId: event.params.materialId,
             error,
         });
@@ -502,7 +588,7 @@ exports.cleanupDeletedSampleRoomFiles = (0, firestore_1.onDocumentDeleted)({ reg
         await deletePrefix(`website/sample-rooms/${event.params.roomId}/`);
     }
     catch (error) {
-        firebase_functions_1.logger.error('Failed to cleanup deleted sample room files', {
+        logger.error('Failed to cleanup deleted sample room files', {
             roomId: event.params.roomId,
             error,
         });
@@ -513,7 +599,7 @@ exports.cleanupDeletedTestimonialFiles = (0, firestore_1.onDocumentDeleted)({ re
         await deletePrefix(`website/testimonials/${event.params.testimonialId}/`);
     }
     catch (error) {
-        firebase_functions_1.logger.error('Failed to cleanup deleted testimonial files', {
+        logger.error('Failed to cleanup deleted testimonial files', {
             testimonialId: event.params.testimonialId,
             error,
         });
@@ -524,7 +610,7 @@ exports.cleanupDeletedPortfolioFiles = (0, firestore_1.onDocumentDeleted)({ regi
         await deletePrefix(`website/portfolio/${event.params.projectId}/`);
     }
     catch (error) {
-        firebase_functions_1.logger.error('Failed to cleanup deleted portfolio files', {
+        logger.error('Failed to cleanup deleted portfolio files', {
             projectId: event.params.projectId,
             error,
         });
@@ -535,7 +621,7 @@ exports.cleanupDeletedTeamProfileFiles = (0, firestore_1.onDocumentDeleted)({ re
         await deletePrefix(`website/team-profiles/${event.params.uid}/`);
     }
     catch (error) {
-        firebase_functions_1.logger.error('Failed to cleanup deleted team profile files', {
+        logger.error('Failed to cleanup deleted team profile files', {
             uid: event.params.uid,
             error,
         });

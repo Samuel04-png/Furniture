@@ -5,6 +5,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function userRecord() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : null;
+    }
+
     function canonicalRole(value) {
       return value == 'Owner' || value == 'owner' ? 'Owner'
         : value == 'Admin' || value == 'admin' ? 'Admin'
@@ -14,18 +20,48 @@ service cloud.firestore {
         : value == 'Inventory Manager' || value == 'inventory manager' ? 'Inventory Manager'
         : value == 'Procurement' || value == 'procurement' ? 'Procurement'
         : value == 'Accountant' || value == 'accountant' ? 'Accountant'
+        : value == 'Operations' || value == 'operations' ? 'Admin'
+        : value == 'Workshop' || value == 'workshop' ? 'Production Manager'
+        : value == 'Production' || value == 'production' ? 'Production Manager'
+        : value == 'Inventory' || value == 'inventory' ? 'Inventory Manager'
         : value == 'Read Only' || value == 'read only' || value == 'readonly' ? 'Read Only'
         : 'Read Only';
+    }
+
+    function isDisabledUser() {
+      return signedIn() && (
+        request.auth.token.disabled == true ||
+        (userRecord() != null && userRecord().status == 'Disabled')
+      );
+    }
+
+    function isApprovedUser() {
+      return signedIn()
+        && !isDisabledUser()
+        && (
+          request.auth.token.approved == true ||
+          userRecord() != null
+        );
     }
 
     function role() {
       return signedIn() && request.auth.token.role != null
         ? canonicalRole(request.auth.token.role)
-        : 'Read Only';
+        : userRecord() != null && userRecord().role != null
+          ? canonicalRole(userRecord().role)
+          : 'Read Only';
     }
 
     function roleIn(roles) {
-      return signedIn() && role() in roles;
+      return isApprovedUser() && role() in roles;
+    }
+
+    function canReadTeamDirectory() {
+      return isApprovedUser();
+    }
+
+    function canReadNotifications() {
+      return isApprovedUser() && role() in resource.data.targetRoles;
     }
 
     function canReadPipeline() {
@@ -210,27 +246,28 @@ service cloud.firestore {
     }
 
     match /teamProfiles/{uid} {
-      allow read: if resource.data.isPublicProfile == true || canManageSystem();
+      allow read: if resource.data.isPublicProfile == true || canReadTeamDirectory();
       allow write: if canManageSystem();
     }
 
     match /users/{uid} {
-      allow read: if signedIn();
+      allow get: if (signedIn() && request.auth.uid == uid) || canReadTeamDirectory();
+      allow list: if canReadTeamDirectory();
       allow write: if canManageSystem();
     }
 
     match /templates/{templateId} {
-      allow read: if signedIn();
+      allow read: if canManageSystem();
       allow create, update, delete: if canManageSystem();
     }
 
     match /automations/{automationId} {
-      allow read: if signedIn();
+      allow read: if canManageSystem();
       allow create, update, delete: if canManageSystem();
     }
 
     match /notifications/{notificationId} {
-      allow read: if signedIn();
+      allow read: if canReadNotifications();
       allow write: if false;
     }
 

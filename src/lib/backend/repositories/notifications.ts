@@ -1,7 +1,8 @@
 import { httpsCallable } from 'firebase/functions';
-import { orderBy } from 'firebase/firestore';
-import type { NotificationRecord } from '../../../types';
+import { where } from 'firebase/firestore';
+import type { NotificationRecord, TeamRole } from '../../../types';
 import { functions } from '../../firebase';
+import { normalizeRole } from '../constants';
 import { subscribeCollection } from '../firestore';
 
 interface NotificationReadPayload {
@@ -9,13 +10,21 @@ interface NotificationReadPayload {
 }
 
 export function subscribeNotifications(
+  role: TeamRole,
   onData: (notifications: NotificationRecord[]) => void,
   onError?: (message: string) => void,
 ) {
   return subscribeCollection<NotificationRecord>(
     'notifications',
-    [orderBy('triggeredAt', 'desc')],
-    onData,
+    [where('targetRoles', 'array-contains', normalizeRole(role))],
+    (notifications) =>
+      onData(
+        notifications.sort((left, right) => {
+          const leftTime = left.triggeredAt ? Date.parse(left.triggeredAt) : 0;
+          const rightTime = right.triggeredAt ? Date.parse(right.triggeredAt) : 0;
+          return rightTime - leftTime;
+        }),
+      ),
     (error) => {
       console.error('Failed to subscribe to notifications:', error);
       onError?.('Unable to load notifications right now.');

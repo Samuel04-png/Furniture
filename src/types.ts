@@ -361,15 +361,32 @@ export interface InventoryItem extends AuditFields {
   eta: string;
 }
 
+export interface InvoiceLineItem {
+  id: string;
+  inventoryItemId?: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+}
+
 export interface AccountingRecord extends AuditFields {
   id: string;
   type: AccountingType;
   title: string;
   clientName?: string;
+  clientPhone?: string;
+  clientEmail?: string;
   amount: number;
   status: AccountingStatus;
   dueDate: string;
   issuedDate: string;
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  lineItems?: InvoiceLineItem[];
+  subtotal?: number;
+  taxRate?: number;
+  taxAmount?: number;
+  feeAmount?: number;
   attachmentUrl?: string;
   attachmentPath?: string;
 }

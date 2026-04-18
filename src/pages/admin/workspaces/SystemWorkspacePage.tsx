@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AdminButton, AdminEmptyState, AdminModal, AdminPage, AdminPageHeader, AdminStatusChip, AdminSubnav, AdminSurface, AdminSurfaceHeader } from '../../../components/admin/AdminUi';
-import { canAccessWorkspace } from '../../../lib/adminAccess';
+import { canAccessWorkspace, canTakeConsultations } from '../../../lib/adminAccess';
 import { supportedRoles } from '../../../lib/backend/constants';
 import { uploadWebsiteMedia } from '../../../lib/backend/services/storage';
 import { generateId } from '../../../lib/utils';
@@ -99,7 +99,7 @@ export function SystemWorkspacePage() {
   const teamCards = useMemo(() => teamMembers.map((member) => ({
     ...member,
     workspaces: (Object.keys(workspaceLabels) as Array<keyof typeof workspaceLabels>).filter((workspace) => canAccessWorkspace(workspace, member.role)),
-    canTakeConsultations: member.role === 'Owner' || member.role === 'Admin' || member.role === 'Designer',
+    canTakeConsultations: member.status !== 'Disabled' && canTakeConsultations(member.role),
   })), [teamMembers]);
 
   const createInitials = (name: string) =>
