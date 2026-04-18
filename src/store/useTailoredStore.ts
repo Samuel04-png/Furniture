@@ -88,6 +88,12 @@ import {
   markNotificationRead as markNotificationReadRemote,
   subscribeNotifications,
 } from '../lib/backend/repositories/notifications';
+import {
+  canAccessWorkspace,
+  canOwnLeads,
+  canTakeConsultations,
+  getFirstAssignableTeamMemberId,
+} from '../lib/adminAccess';
 import { refreshAdminSession, signInAdmin as signInAdminRemote, signOutAdmin as signOutAdminRemote, watchAuthSession } from '../lib/backend/auth';
 import { emptyCompanySettings } from '../lib/backend/constants';
 import { uploadPublicSubmissionDataUrl } from '../lib/backend/services/storage';
@@ -117,6 +123,13 @@ import type {
 } from '../types';
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+function getDefaultAssignments(teamMembers: TeamMember[]) {
+  return {
+    defaultOwner: getFirstAssignableTeamMemberId(teamMembers, canOwnLeads),
+    defaultDesigner: getFirstAssignableTeamMemberId(teamMembers, canTakeConsultations),
+  };
+}
 
 const defaultVisualiserDraft: VisualiserDraft = {
   roomPhotoUrl: null,
@@ -289,6 +302,7 @@ let publicUnsubscribes: Array<() => void> = [];
 let adminUnsubscribes: Array<() => void> = [];
 let publicSubscriptionsStarted = false;
 let adminSubscriptionsStarted = false;
+let adminSubscriptionsRole: TeamMember['role'] | undefined;
 
 const createInitialState = () => ({
   isAdminAuthenticated: false,
@@ -384,6 +398,7 @@ function stopAdminListeners(set: (partial: Partial<TailoredStore> | ((state: Tai
   adminUnsubscribes.forEach((unsubscribe) => unsubscribe());
   adminUnsubscribes = [];
   adminSubscriptionsStarted = false;
+  adminSubscriptionsRole = undefined;
   set((state) => ({
     adminProducts: [],
     adminMaterials: [],
@@ -468,32 +483,67 @@ function startPublicListeners(
 function startAdminListeners(
   set: (partial: Partial<TailoredStore> | ((state: TailoredStore) => Partial<TailoredStore>)) => void,
   get: () => TailoredStore,
+  role: TeamMember['role'],
 ) {
-  if (adminSubscriptionsStarted) return;
-  adminSubscriptionsStarted = true;
+  if (adminSubscriptionsStarted && adminSubscriptionsRole === role) return;
+  if (adminSubscriptionsStarted) {
+    stopAdminListeners(set);
+  }
 
-  adminUnsubscribes = [
-    subscribeAdminProducts(
+  adminSubscriptionsStarted = true;
+  adminSubscriptionsRole = role;
+
+  const nextUnsubscribes: Array<() => void> = [];
+  const addSubscription = (enabled: boolean, factory: () => () => void) => {
+    if (!enabled) return;
+    nextUnsubscribes.push(factory());
+  };
+
+  const canAccessProducts = canAccessWorkspace('products', role);
+  const canAccessMaterials = canAccessWorkspace('materials', role);
+  const canAccessPipeline = canAccessWorkspace('pipeline', role);
+  const canAccessJobs = canAccessWorkspace('jobs', role);
+  const canAccessFinance = canAccessWorkspace('finance', role);
+  const canAccessSystem = canAccessWorkspace('system', role);
+
+  addSubscription(
+    canAccessProducts,
+    () => subscribeAdminProducts(
       (adminProducts) => set({ adminProducts, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-    subscribeAdminMaterials(
+  );
+  addSubscription(
+    canAccessMaterials,
+    () => subscribeAdminMaterials(
       (adminMaterials) => set({ adminMaterials, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-    subscribeAdminSampleRooms(
+  );
+  addSubscription(
+    canAccessSystem,
+    () => subscribeAdminSampleRooms(
       (adminSampleRooms) => set({ adminSampleRooms, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-    subscribeAdminTestimonials(
+  );
+  addSubscription(
+    canAccessSystem,
+    () => subscribeAdminTestimonials(
       (adminTestimonials) => set({ adminTestimonials, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-    subscribeAdminPortfolioProjects(
+  );
+  addSubscription(
+    canAccessSystem,
+    () => subscribeAdminPortfolioProjects(
       (adminPortfolioProjects) => set({ adminPortfolioProjects, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-    subscribeTeamMembers(
+  );
+  addSubscription(
+    true,
+    () => subscribeTeamMembers(
       (teamMembers) => {
         const normalizedTeamMembers = teamMembers.map((member) => ({
           ...member,
@@ -509,7 +559,16 @@ function startAdminListeners(
         if (authUser && matchedMember && matchedMember.role !== authUser.role) {
           void refreshAdminSession()
             .then((session) => {
-              if (!session) return;
+              if (!session?.approved) {
+                stopAdminListeners(set);
+                set({
+                  isAdminAuthenticated: false,
+                  authUser: undefined,
+                  activeAdminId: undefined,
+                  lastError: 'This account is no longer approved for the admin workspace.',
+                });
+                return;
+              }
               set((state) => ({
                 authUser: {
                   uid: session.user.uid,
@@ -524,6 +583,7 @@ function startAdminListeners(
                       normalizedTeamMembers[0]?.id ??
                       state.activeAdminId,
               }));
+              startAdminListeners(set, get, session.role);
             })
             .catch((error) => {
               console.error('Failed to refresh auth session after team sync:', error);
@@ -544,7 +604,10 @@ function startAdminListeners(
       },
       (message) => setError(set, message),
     ),
-    subscribeAdminCompanySettings(
+  );
+  addSubscription(
+    true,
+    () => subscribeAdminCompanySettings(
       (settings) =>
         set((state) => ({
           companySettings: mergeCompanySettings(settings, state.notificationTemplates),
@@ -552,7 +615,10 @@ function startAdminListeners(
         })),
       (message) => setError(set, message),
     ),
-    subscribeTemplates(
+  );
+  addSubscription(
+    canAccessSystem,
+    () => subscribeTemplates(
       (notificationTemplates) =>
         set((state) => ({
           notificationTemplates,
@@ -564,39 +630,66 @@ function startAdminListeners(
         })),
       (message) => setError(set, message),
     ),
-    subscribeAutomations(
+  );
+  addSubscription(
+    canAccessSystem,
+    () => subscribeAutomations(
       (automationRules) => set({ automationRules, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-    subscribeNotifications(
+  );
+  addSubscription(
+    true,
+    () => subscribeNotifications(
+      role,
       (notifications) => set({ notifications, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-    subscribeEnquiries(
+  );
+  addSubscription(
+    canAccessPipeline,
+    () => subscribeEnquiries(
       (enquiries) => set({ enquiries, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-    subscribeVisualiserSessions(
+  );
+  addSubscription(
+    canAccessPipeline,
+    () => subscribeVisualiserSessions(
       (visualiserSessions) => set({ visualiserSessions, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-    subscribeConsultations(
+  );
+  addSubscription(
+    canAccessPipeline,
+    () => subscribeConsultations(
       (consultations) => set({ consultations, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-    subscribeProductionOrders(
+  );
+  addSubscription(
+    canAccessJobs,
+    () => subscribeProductionOrders(
       (productionOrders) => set({ productionOrders, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-    subscribeInventoryItems(
+  );
+  addSubscription(
+    canAccessMaterials,
+    () => subscribeInventoryItems(
       (inventoryItems) => set({ inventoryItems, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-    subscribeAccountingRecords(
+  );
+  addSubscription(
+    canAccessFinance,
+    () => subscribeAccountingRecords(
       (accountingRecords) => set({ accountingRecords, adminDataReady: true }),
       (message) => setError(set, message),
     ),
-  ];
+  );
+
+  adminUnsubscribes = nextUnsubscribes;
 }
 
 export const useTailoredStore = create<TailoredStore>()(
@@ -620,7 +713,7 @@ export const useTailoredStore = create<TailoredStore>()(
         if (authUnsubscribe) return;
 
         authUnsubscribe = watchAuthSession((session) => {
-          if (session) {
+          if (session?.approved) {
             set({
               isAdminAuthenticated: true,
               authReady: true,
@@ -629,8 +722,9 @@ export const useTailoredStore = create<TailoredStore>()(
                 email: session.user.email,
                 role: session.role,
               },
+              lastError: undefined,
             });
-            startAdminListeners(set, get);
+            startAdminListeners(set, get, session.role);
             return;
           }
 
@@ -640,12 +734,24 @@ export const useTailoredStore = create<TailoredStore>()(
             authReady: true,
             authUser: undefined,
             activeAdminId: undefined,
+            lastError: session ? 'This account is signed in but is not approved for the admin workspace.' : undefined,
           });
         });
       },
       signInAdmin: async (email, password) => {
         try {
           await signInAdminRemote(email, password);
+          const session = await refreshAdminSession();
+          if (!session?.approved) {
+            await signOutAdminRemote();
+            set({
+              lastError: session?.status === 'Disabled'
+                ? 'This account has been disabled and can no longer access the admin workspace.'
+                : 'This account is signed in, but it has not been approved for admin access.',
+            });
+            return false;
+          }
+          set({ lastError: undefined });
           return true;
         } catch (error) {
           console.error('Firebase sign-in failed:', error);
@@ -1092,10 +1198,7 @@ export const useTailoredStore = create<TailoredStore>()(
         }
 
         const teamMembers = get().teamMembers;
-        const defaultOwner =
-          teamMembers.find((member) => member.role === 'Sales' || member.role === 'Admin' || member.role === 'Owner')?.id;
-        const defaultDesigner =
-          teamMembers.find((member) => member.role === 'Designer' || member.role === 'Admin' || member.role === 'Owner')?.id;
+        const { defaultOwner, defaultDesigner } = getDefaultAssignments(teamMembers);
         const session: VisualiserSession = {
           id: sessionId,
           roomPhotoUrl,
@@ -1204,10 +1307,7 @@ export const useTailoredStore = create<TailoredStore>()(
         }
 
         const teamMembers = get().teamMembers;
-        const defaultOwner =
-          teamMembers.find((member) => member.role === 'Sales' || member.role === 'Admin' || member.role === 'Owner')?.id;
-        const defaultDesigner =
-          teamMembers.find((member) => member.role === 'Designer' || member.role === 'Admin' || member.role === 'Owner')?.id;
+        const { defaultOwner, defaultDesigner } = getDefaultAssignments(teamMembers);
 
         const configurationData = {
           productId: selectedProduct?.id,
@@ -1275,10 +1375,7 @@ export const useTailoredStore = create<TailoredStore>()(
         const enquiryId = generateId('enq');
         const consultationId = generateId('con');
         const teamMembers = get().teamMembers;
-        const defaultOwner =
-          teamMembers.find((member) => member.role === 'Sales' || member.role === 'Admin' || member.role === 'Owner')?.id;
-        const defaultDesigner =
-          teamMembers.find((member) => member.role === 'Designer' || member.role === 'Admin' || member.role === 'Owner')?.id;
+        const { defaultOwner, defaultDesigner } = getDefaultAssignments(teamMembers);
         const enquiry: Enquiry = {
           id: enquiryId,
           type: payload.source,

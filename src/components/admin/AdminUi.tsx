@@ -319,12 +319,12 @@ export function AdminModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[rgba(12,12,12,0.46)] p-0 sm:items-center sm:p-6" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[rgba(12,12,12,0.46)] p-2 sm:items-center sm:p-6" onClick={onClose}>
       <div
-        className={cn('max-h-[92vh] w-full overflow-hidden rounded-t-[1.8rem] bg-[#f9f6f1] shadow-[0_30px_90px_rgba(0,0,0,0.25)] sm:rounded-[1.8rem]', width)}
+        className={cn('flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden rounded-[1.6rem] bg-[#f9f6f1] shadow-[0_30px_90px_rgba(0,0,0,0.25)] sm:h-auto sm:max-h-[92vh] sm:rounded-[1.8rem]', width)}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-black/7 px-5 py-5 sm:px-6">
+        <div className="sticky top-0 z-[1] flex items-start justify-between gap-4 border-b border-black/7 bg-[#f9f6f1]/96 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5">
           <div>
             <h3 className="font-cormorant text-[1.9rem] leading-none tracking-[-0.03em] text-tm-charcoal">{title}</h3>
             {description ? <p className="mt-2 max-w-xl text-sm leading-6 text-tm-warm-gray">{description}</p> : null}
@@ -338,7 +338,7 @@ export function AdminModal({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="max-h-[calc(92vh-88px)] overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-5">{children}</div>
       </div>
     </div>
   );
@@ -367,12 +367,12 @@ export function AdminDrawer({
     >
       <div
         className={cn(
-          'absolute inset-x-0 bottom-0 h-[86vh] rounded-t-[1.8rem] bg-[#f9f6f1] shadow-[0_30px_90px_rgba(0,0,0,0.24)] transition sm:inset-y-0 sm:right-0 sm:left-auto sm:h-auto sm:w-[min(640px,100vw)] sm:rounded-none sm:rounded-l-[1.8rem]',
+          'absolute inset-2 flex flex-col overflow-hidden rounded-[1.6rem] bg-[#f9f6f1] shadow-[0_30px_90px_rgba(0,0,0,0.24)] transition sm:inset-y-0 sm:right-0 sm:left-auto sm:h-auto sm:w-[min(640px,100vw)] sm:rounded-none sm:rounded-l-[1.8rem]',
           open ? 'translate-y-0 sm:translate-x-0' : 'translate-y-full sm:translate-x-full sm:translate-y-0',
         )}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-black/7 px-5 py-5 sm:px-6">
+        <div className="sticky top-0 z-[1] flex items-start justify-between gap-4 border-b border-black/7 bg-[#f9f6f1]/96 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5">
           <div>
             <h3 className="font-cormorant text-[1.8rem] leading-none tracking-[-0.03em] text-tm-charcoal">{title}</h3>
             {description ? <p className="mt-2 text-sm leading-6 text-tm-warm-gray">{description}</p> : null}
@@ -386,7 +386,7 @@ export function AdminDrawer({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="h-[calc(100%-88px)] overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-5">{children}</div>
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import type { TeamMember } from '../types';
 import { AdminAuthLoadingPage, AdminLoginPage } from './admin/AdminModules';
 import { CommandCenterPage } from './admin/workspaces/CommandCenterPage';
 import { FinanceWorkspacePage } from './admin/workspaces/FinanceWorkspacePage';
+import { InvoiceDetailPage, InvoiceEditorPage, InvoicesWorkspacePage } from './admin/workspaces/InvoicesWorkspacePage';
 import { JobsWorkspacePage } from './admin/workspaces/JobsWorkspacePage';
 import { MaterialsWorkspacePage } from './admin/workspaces/MaterialsWorkspacePage';
 import { PipelineWorkspacePage } from './admin/workspaces/PipelineWorkspacePage';
@@ -126,6 +127,7 @@ export default function Admin() {
     { label: 'Book consultation', href: '/admin/pipeline/consultations?action=book-consultation' },
     { label: 'Adjust stock', href: '/admin/materials/stock?action=receive-stock' },
     { label: 'Create purchase order', href: '/admin/materials/purchase-orders?action=create-po' },
+    { label: 'Create invoice', href: '/admin/finance/invoices/new' },
     { label: 'Record payment', href: '/admin/finance/deposits?action=record-payment' },
     { label: 'Open product library', href: '/admin/products/library' },
   ], []);
@@ -171,13 +173,18 @@ export default function Admin() {
                 <Route path="/production" element={<Navigate to="/admin/jobs/board" replace />} />
                 <Route path="/inventory" element={<Navigate to="/admin/materials/stock" replace />} />
                 <Route path="/accounting" element={<Navigate to="/admin/finance/invoices" replace />} />
+                <Route path="/finance" element={<Navigate to="/admin/finance/invoices" replace />} />
                 <Route path="/catalogue" element={<Navigate to="/admin/products/library" replace />} />
                 <Route path="/settings" element={<Navigate to="/admin/system/team" replace />} />
                 <Route path="/command-center" element={<WorkspaceRoute workspace="command-center"><CommandCenterPage /></WorkspaceRoute>} />
                 <Route path="/pipeline/:tab?" element={<WorkspaceRoute workspace="pipeline"><PipelineWorkspacePage /></WorkspaceRoute>} />
                 <Route path="/jobs/:tab?" element={<WorkspaceRoute workspace="jobs"><JobsWorkspacePage /></WorkspaceRoute>} />
                 <Route path="/materials/:tab?" element={<WorkspaceRoute workspace="materials"><MaterialsWorkspacePage /></WorkspaceRoute>} />
-                <Route path="/finance/:tab?" element={<WorkspaceRoute workspace="finance"><FinanceWorkspacePage /></WorkspaceRoute>} />
+                <Route path="/finance/invoices" element={<WorkspaceRoute workspace="finance"><InvoicesWorkspacePage /></WorkspaceRoute>} />
+                <Route path="/finance/invoices/new" element={<WorkspaceRoute workspace="finance"><InvoiceEditorPage /></WorkspaceRoute>} />
+                <Route path="/finance/invoices/:invoiceId" element={<WorkspaceRoute workspace="finance"><InvoiceDetailPage /></WorkspaceRoute>} />
+                <Route path="/finance/invoices/:invoiceId/edit" element={<WorkspaceRoute workspace="finance"><InvoiceEditorPage /></WorkspaceRoute>} />
+                <Route path="/finance/:tab" element={<WorkspaceRoute workspace="finance"><FinanceWorkspacePage /></WorkspaceRoute>} />
                 <Route path="/products/:tab?" element={<WorkspaceRoute workspace="products"><ProductsWorkspacePage /></WorkspaceRoute>} />
                 <Route path="/system/:tab?" element={<WorkspaceRoute workspace="system"><SystemWorkspacePage /></WorkspaceRoute>} />
                 <Route path="*" element={<Navigate to="/admin/command-center" replace />} />
@@ -288,9 +295,13 @@ function SidebarContent({ visibleGroups, activePath, collapsed, onNavigate, onSi
 function MobileSidebar({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) {
   return (
     <div className={cn('fixed inset-0 z-50 bg-[rgba(12,12,12,0.42)] backdrop-blur-[3px] transition duration-200 ease-out lg:hidden', open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0')} onClick={onClose}>
-      <div className={cn('h-full w-[min(368px,82vw)] overflow-hidden rounded-r-[1.8rem] border-r border-[#2a231c] shadow-[0_24px_54px_rgba(0,0,0,0.28)] transition duration-200 ease-out', open ? 'translate-x-0' : '-translate-x-full')} onClick={(event) => event.stopPropagation()}>
-        <div className="flex justify-end px-3 pt-3"><button type="button" onClick={onClose} aria-label="Close navigation" className="inline-flex h-11 w-11 items-center justify-center rounded-[1rem] border border-white/10 bg-black/28 text-tm-cream transition duration-200 ease-out hover:bg-black/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tm-gold/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#15120f]"><X className="h-4 w-4" /></button></div>
-        {children}
+      <div className="flex h-full items-stretch p-2 sm:p-3">
+        <div className={cn('relative h-full w-[min(390px,calc(100vw-1rem))] max-w-full overflow-hidden rounded-[1.9rem] transition duration-200 ease-out', open ? 'translate-x-0' : '-translate-x-[calc(100%+1rem)]')} onClick={(event) => event.stopPropagation()}>
+          <div className="absolute right-3 top-3 z-10">
+            <button type="button" onClick={onClose} aria-label="Close navigation" className="inline-flex h-11 w-11 items-center justify-center rounded-[1rem] border border-white/10 bg-black/28 text-tm-cream transition duration-200 ease-out hover:bg-black/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tm-gold/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#15120f]"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="h-full">{children}</div>
+        </div>
       </div>
     </div>
   );

@@ -1,16 +1,20 @@
-import { initializeApp } from 'firebase-admin/app';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onDocumentDeleted, onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { logger } from 'firebase-functions';
+import * as logger from 'firebase-functions/logger';
 
 const storageBucket =
   process.env.FIREBASE_STORAGE_BUCKET ||
   process.env.STORAGE_BUCKET ||
   'tailored-manor.firebasestorage.app';
 
-initializeApp({
-  storageBucket,
-});
+function ensureAdminApp() {
+  const { getApps, initializeApp } = require('firebase-admin/app') as typeof import('firebase-admin/app');
+  if (!getApps().length) {
+    initializeApp({
+      storageBucket,
+    });
+  }
+}
 
 function createLazyProxy<T extends object>(factory: () => T) {
   return new Proxy({} as T, {
@@ -29,9 +33,18 @@ function fieldValue() {
   };
 }
 
-const auth = createLazyProxy(() => require('firebase-admin/auth').getAuth());
-const db = createLazyProxy(() => require('firebase-admin/firestore').getFirestore());
-const bucket = createLazyProxy(() => require('firebase-admin/storage').getStorage().bucket(storageBucket));
+const auth = createLazyProxy(() => {
+  ensureAdminApp();
+  return require('firebase-admin/auth').getAuth();
+});
+const db = createLazyProxy(() => {
+  ensureAdminApp();
+  return require('firebase-admin/firestore').getFirestore();
+});
+const bucket = createLazyProxy(() => {
+  ensureAdminApp();
+  return require('firebase-admin/storage').getStorage().bucket(storageBucket);
+});
 const region = process.env.FUNCTIONS_REGION || 'africa-south1';
 
 type TeamRole =
@@ -44,6 +57,8 @@ type TeamRole =
   | 'Procurement'
   | 'Accountant'
   | 'Read Only';
+
+type TeamStatus = 'Invited' | 'Active' | 'Disabled';
 
 type AutomationEventType =
   | 'lead.created'
@@ -130,6 +145,10 @@ function normalizeRole(role: string | undefined) {
     accountant: 'Accountant',
     'read only': 'Read Only',
     readonly: 'Read Only',
+    operations: 'Admin',
+    workshop: 'Production Manager',
+    production: 'Production Manager',
+    inventory: 'Inventory Manager',
   };
 
   return canonicalRoles[value.toLowerCase()] || 'Read Only';
@@ -150,12 +169,41 @@ function randomPassword() {
   return `TM-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36).slice(-4)}`;
 }
 
-function requireAdmin(authData: { token?: Record<string, unknown> } | null | undefined) {
-  if (!authData) {
+async function resolveTeamAccess(authData: { uid?: string; token?: Record<string, unknown> } | null | undefined) {
+  if (!authData?.uid) {
+    return {
+      uid: null,
+      role: 'Read Only' as TeamRole,
+      status: null as TeamStatus | null,
+      approved: false,
+    };
+  }
+
+  const tokenRole = normalizeRole(authData.token?.role as string | undefined);
+  const tokenApproved = authData.token?.approved === true;
+  const tokenDisabled = authData.token?.disabled === true;
+  const userSnapshot = await db.collection('users').doc(authData.uid).get();
+  const userData = userSnapshot.exists ? (userSnapshot.data() as { role?: string; status?: TeamStatus }) : undefined;
+  const status = userData?.status || null;
+  const disabled = tokenDisabled || status === 'Disabled';
+
+  return {
+    uid: authData.uid,
+    role: userData?.role ? normalizeRole(userData.role) : tokenRole,
+    status,
+    approved: !disabled && (tokenApproved || userSnapshot.exists),
+  };
+}
+
+async function requireAdmin(authData: { uid?: string; token?: Record<string, unknown> } | null | undefined) {
+  if (!authData?.uid) {
     throw new HttpsError('unauthenticated', 'Authentication is required.');
   }
 
-  const role = normalizeRole(authData.token?.role as string | undefined);
+  const { role, approved } = await resolveTeamAccess(authData);
+  if (!approved) {
+    throw new HttpsError('permission-denied', 'This account is not approved for admin access.');
+  }
   if (role !== 'Owner' && role !== 'Admin') {
     throw new HttpsError('permission-denied', 'Only owners and admins can perform this action.');
   }
@@ -163,14 +211,19 @@ function requireAdmin(authData: { token?: Record<string, unknown> } | null | und
   return role;
 }
 
-function requireSignedIn(authData: { uid?: string; token?: Record<string, unknown> } | null | undefined) {
+async function requireSignedIn(authData: { uid?: string; token?: Record<string, unknown> } | null | undefined) {
   if (!authData?.uid) {
     throw new HttpsError('unauthenticated', 'Authentication is required.');
   }
 
+  const { role, approved } = await resolveTeamAccess(authData);
+  if (!approved) {
+    throw new HttpsError('permission-denied', 'This account is not approved for admin access.');
+  }
+
   return {
     uid: authData.uid,
-    role: normalizeRole(authData.token?.role as string | undefined),
+    role,
   };
 }
 
@@ -356,7 +409,7 @@ async function syncPublishedProductRecord(productId: string, after: Record<strin
 }
 
 export const createTeamMember = onCall({ region }, async (request) => {
-  requireAdmin(request.auth || undefined);
+  await requireAdmin(request.auth || undefined);
 
   const name = String(request.data?.name || '').trim();
   const email = String(request.data?.email || '').trim().toLowerCase();
@@ -382,7 +435,7 @@ export const createTeamMember = onCall({ region }, async (request) => {
     displayName: name,
   });
 
-  await auth.setCustomUserClaims(userRecord.uid, { role });
+  await auth.setCustomUserClaims(userRecord.uid, { role, approved: true, disabled: false });
 
   const userDoc = {
     uid: userRecord.uid,
@@ -435,7 +488,7 @@ export const createTeamMember = onCall({ region }, async (request) => {
 });
 
 export const backfillPublishedProducts = onCall({ region }, async (request) => {
-  requireAdmin(request.auth || undefined);
+  await requireAdmin(request.auth || undefined);
   const snapshot = await db.collection('products').get();
   let publishedCount = 0;
 
@@ -459,7 +512,7 @@ export const backfillPublishedProducts = onCall({ region }, async (request) => {
 });
 
 export const disableTeamMember = onCall({ region }, async (request) => {
-  requireAdmin(request.auth || undefined);
+  await requireAdmin(request.auth || undefined);
 
   const uid = String(request.data?.uid || '').trim();
   if (!uid) {
@@ -467,6 +520,7 @@ export const disableTeamMember = onCall({ region }, async (request) => {
   }
 
   await auth.updateUser(uid, { disabled: true });
+  await auth.setCustomUserClaims(uid, { role: 'Read Only', approved: false, disabled: true });
   await db.collection('users').doc(uid).set(
     {
       status: 'Disabled',
@@ -484,7 +538,7 @@ export const disableTeamMember = onCall({ region }, async (request) => {
 });
 
 export const markNotificationRead = onCall({ region }, async (request) => {
-  const { uid, role } = requireSignedIn(request.auth || undefined);
+  const { uid, role } = await requireSignedIn(request.auth || undefined);
   const notificationId = String(request.data?.notificationId || '').trim();
 
   if (!notificationId) {
@@ -517,7 +571,7 @@ export const markNotificationRead = onCall({ region }, async (request) => {
 });
 
 export const markAllNotificationsRead = onCall({ region }, async (request) => {
-  const { uid, role } = requireSignedIn(request.auth || undefined);
+  const { uid, role } = await requireSignedIn(request.auth || undefined);
   const snapshot = await db.collection('notifications').where('targetRoles', 'array-contains', role).get();
   const batch = db.batch();
   let updatedCount = 0;
@@ -555,9 +609,14 @@ export const syncTeamClaims = onDocumentWritten({ region, document: 'users/{uid}
   }
 
   const role = normalizeRole(after.role);
-  await auth.setCustomUserClaims(uid, { role });
+  const disabled = after.status === 'Disabled';
+  await auth.setCustomUserClaims(uid, {
+    role: disabled ? 'Read Only' : role,
+    approved: !disabled,
+    disabled,
+  });
 
-  if (after.isPublicProfile) {
+  if (after.isPublicProfile && !disabled) {
     await db.collection('teamProfiles').doc(uid).set(
       {
         id: uid,

@@ -37,7 +37,7 @@ export const supportedRoles: TeamRole[] = [
   'Read Only',
 ];
 
-export const legacyRoleMap: Record<TeamRole, TeamRole> = {
+export const legacyRoleMap: Partial<Record<TeamRole, TeamRole>> = {
   Owner: 'Owner',
   Admin: 'Admin',
   Sales: 'Sales',

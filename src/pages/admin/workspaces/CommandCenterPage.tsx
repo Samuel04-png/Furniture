@@ -10,6 +10,7 @@ import {
   AdminSurface,
   AdminSurfaceHeader,
 } from '../../../components/admin/AdminUi';
+import { getAccountingStatusLabel } from '../../../lib/invoices';
 import { formatCurrency, formatDate, formatDateTime } from '../../../lib/utils';
 import { useTailoredStore } from '../../../store/useTailoredStore';
 import { getJobNextAction, toneForConsultation, toneForFinance, useActiveAdmin } from './shared';
@@ -29,7 +30,10 @@ export function CommandCenterPage() {
   const activeJobs = productionOrders
     .filter((order) => order.status !== 'Delivered')
     .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
-  const outstandingPayments = accountingRecords.filter((record) => record.status === 'Issued' || record.status === 'Overdue');
+  const outstandingPayments = accountingRecords.filter((record) => {
+    const label = getAccountingStatusLabel(record);
+    return label === 'Unpaid' || label === 'Overdue';
+  });
   const stockAlerts = inventoryItems.filter((item) => item.onHand <= item.reorderPoint);
   const nextActions = [
     ...enquiries
@@ -41,12 +45,12 @@ export function CommandCenterPage() {
         href: '/admin/pipeline/leads',
       })),
     ...outstandingPayments
-      .filter((item) => item.status === 'Overdue')
+      .filter((item) => getAccountingStatusLabel(item) === 'Overdue')
       .slice(0, 2)
       .map((item) => ({
         title: `Chase ${item.title}`,
         meta: `${item.clientName ?? 'Client record'} is overdue`,
-        href: '/admin/finance/invoices',
+        href: item.type === 'Invoice' ? `/admin/finance/invoices/${item.id}` : '/admin/finance/invoices',
       })),
     ...activeJobs.slice(0, 2).map((item) => ({
       title: `Review ${item.productName}`,
@@ -117,7 +121,7 @@ export function CommandCenterPage() {
             <div className="flex items-start gap-3 rounded-[1.25rem] border border-[#dfc69d] bg-[#fbf6ed] px-4 py-4">
               <TriangleAlert className="mt-0.5 h-4 w-4 text-[#94642d]" />
               <div>
-                <p className="text-sm font-semibold text-[#6f4d24]">{outstandingPayments.filter((item) => item.status === 'Overdue').length} overdue payment records</p>
+                <p className="text-sm font-semibold text-[#6f4d24]">{outstandingPayments.filter((item) => getAccountingStatusLabel(item) === 'Overdue').length} overdue payment records</p>
                 <p className="mt-1 text-sm text-[#8a6740]">Prioritize reminders and release gates before production dates slip.</p>
               </div>
             </div>
@@ -196,9 +200,9 @@ export function CommandCenterPage() {
                     <p className="text-sm font-semibold text-tm-charcoal">{record.title}</p>
                     <p className="mt-1 text-sm text-tm-warm-gray">{record.clientName ?? 'Client record'} - {formatCurrency(record.amount)}</p>
                   </div>
-                  <AdminStatusChip label={record.status} tone={toneForFinance(record.status)} />
+                  <AdminStatusChip label={getAccountingStatusLabel(record)} tone={toneForFinance(getAccountingStatusLabel(record))} />
                 </div>
-                <p className="mt-3 text-sm leading-6 text-tm-warm-gray">Due {formatDate(record.dueDate)} - next action: {record.status === 'Overdue' ? 'Send reminder now' : 'Confirm receipt plan'}</p>
+                <p className="mt-3 text-sm leading-6 text-tm-warm-gray">Due {formatDate(record.dueDate)} - next action: {getAccountingStatusLabel(record) === 'Overdue' ? 'Send reminder now' : 'Confirm receipt plan'}</p>
               </div>
             ))}
           </div>

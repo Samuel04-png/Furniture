@@ -1,4 +1,4 @@
-import type { TeamRole } from '../../types';
+import type { TeamMember, TeamRole, TeamStatus } from '../../types';
 import { normalizeRole } from './constants';
 
 export const adminWorkspaces = [
@@ -41,6 +41,9 @@ export const adminPermissions = [
 ] as const;
 
 export type AdminPermission = (typeof adminPermissions)[number];
+
+type AssignableTeamMember = Pick<TeamMember, 'id' | 'role'> &
+  Partial<Pick<TeamMember, 'status'>>;
 
 const workspaceAccess: Record<TeamRole, AdminWorkspace[]> = {
   Owner: [...adminWorkspaces],
@@ -154,4 +157,34 @@ export function canAccessWorkspace(workspace: AdminWorkspace, role?: TeamRole | 
 export function canPerform(permission: AdminPermission, role?: TeamRole | null) {
   if (!role) return false;
   return permissionMatrix[normalizeRole(role)].includes(permission);
+}
+
+export function isActiveTeamMember(status?: TeamStatus | null) {
+  return status !== 'Disabled';
+}
+
+export function canOwnLeads(role?: TeamRole | null) {
+  if (!role) return false;
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === 'Owner' || normalizedRole === 'Admin' || normalizedRole === 'Sales';
+}
+
+export function canTakeConsultations(role?: TeamRole | null) {
+  if (!role) return false;
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === 'Owner' || normalizedRole === 'Admin' || normalizedRole === 'Designer';
+}
+
+export function getAssignableTeamMembers<T extends AssignableTeamMember>(
+  teamMembers: T[],
+  predicate: (role?: TeamRole | null) => boolean,
+) {
+  return teamMembers.filter((member) => isActiveTeamMember(member.status) && predicate(member.role));
+}
+
+export function getFirstAssignableTeamMemberId<T extends AssignableTeamMember>(
+  teamMembers: T[],
+  predicate: (role?: TeamRole | null) => boolean,
+) {
+  return getAssignableTeamMembers(teamMembers, predicate)[0]?.id;
 }

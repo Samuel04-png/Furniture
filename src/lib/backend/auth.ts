@@ -8,24 +8,52 @@ import {
 import { auth } from '../firebase';
 import { normalizeRole } from './constants';
 import { fetchDocument } from './firestore';
+import type { TeamStatus } from '../../types';
 
 export interface AuthSession {
   user: User;
   role: ReturnType<typeof normalizeRole>;
+  approved: boolean;
+  status?: TeamStatus;
 }
 
-async function resolveRoleFromUserDocument(user: User) {
-  const userRecord = await fetchDocument<{ role?: string }>('users', user.uid);
-  return normalizeRole(userRecord?.role ?? null);
+interface UserAccessRecord {
+  role?: string;
+  status?: TeamStatus;
+}
+
+async function resolveUserAccess(user: User) {
+  const userRecord = await fetchDocument<UserAccessRecord>('users', user.uid);
+  const status =
+    userRecord?.status === 'Disabled'
+      ? 'Disabled'
+      : userRecord?.status === 'Invited'
+        ? 'Invited'
+        : userRecord
+          ? 'Active'
+          : undefined;
+
+  return {
+    exists: Boolean(userRecord),
+    role: normalizeRole(userRecord?.role ?? null),
+    status,
+  };
 }
 
 export async function buildAuthSession(user: User) {
   const token = await getIdTokenResult(user, true);
   const tokenRole = normalizeRole((token.claims.role as string | undefined) ?? null);
-  const role = tokenRole === 'Read Only' ? await resolveRoleFromUserDocument(user) : tokenRole;
+  const approvedClaim = token.claims.approved === true;
+  const disabledClaim = token.claims.disabled === true;
+  const userAccess = await resolveUserAccess(user);
+  const role = userAccess.exists ? userAccess.role : tokenRole;
+  const approved = !disabledClaim && (approvedClaim || (userAccess.exists && userAccess.status !== 'Disabled'));
+
   return {
     user,
     role,
+    approved,
+    status: userAccess.status,
   } as AuthSession;
 }
 
@@ -43,6 +71,7 @@ export function watchAuthSession(callback: (session: AuthSession | null) => void
       callback({
         user,
         role: 'Read Only',
+        approved: false,
       });
     }
   });

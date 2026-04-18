@@ -1,7 +1,9 @@
 import type { ChangeEvent, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { Search } from 'lucide-react';
+import { canPerform } from '../../../lib/adminAccess';
 import { useTailoredStore } from '../../../store/useTailoredStore';
 import { cn } from '../../../lib/utils';
+import type { AccountingStatusLabel } from '../../../lib/invoices';
 import type {
   AccountingStatus,
   Consultation,
@@ -67,10 +69,10 @@ export function toneForConsultation(status: Consultation['status']) {
   return 'accent';
 }
 
-export function toneForFinance(status: AccountingStatus) {
+export function toneForFinance(status: AccountingStatus | AccountingStatusLabel) {
   if (status === 'Paid') return 'success';
   if (status === 'Overdue') return 'danger';
-  if (status === 'Issued') return 'warning';
+  if (status === 'Issued' || status === 'Unpaid') return 'warning';
   return 'neutral';
 }
 
@@ -234,5 +236,5 @@ export function defaultLeadForm() {
 }
 
 export function roleSupportsEditing(role?: TeamRole) {
-  return role === 'Admin' || role === 'Owner' || role === 'Sales' || role === 'Operations';
+  return canPerform('lead.edit', role);
 }

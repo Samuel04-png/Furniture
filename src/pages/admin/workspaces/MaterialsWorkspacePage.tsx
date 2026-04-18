@@ -14,6 +14,7 @@ import {
   AdminSurfaceHeader,
 } from '../../../components/admin/AdminUi';
 import { canPerform } from '../../../lib/adminAccess';
+import { getAccountingStatusLabel } from '../../../lib/invoices';
 import { uploadWebsiteMedia } from '../../../lib/backend/services/storage';
 import { formatCurrency, formatDate, generateId, slugify } from '../../../lib/utils';
 import { useTailoredStore } from '../../../store/useTailoredStore';
@@ -341,7 +342,7 @@ export function MaterialsWorkspacePage() {
                       <p className="mt-1 text-sm text-tm-warm-gray">{record.clientName || 'Supplier PO'} - {formatCurrency(record.amount)}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                      <AdminStatusChip label={record.status} tone={record.status === 'Paid' ? 'success' : record.status === 'Overdue' ? 'danger' : 'warning'} />
+                      <AdminStatusChip label={getAccountingStatusLabel(record)} tone={getAccountingStatusLabel(record) === 'Paid' ? 'success' : getAccountingStatusLabel(record) === 'Overdue' ? 'danger' : 'warning'} />
                       <span className="text-[0.68rem] uppercase tracking-[0.18em] text-tm-warm-gray">Due {formatDate(record.dueDate)}</span>
                     </div>
                   </div>

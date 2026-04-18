@@ -143,7 +143,7 @@ export function AdminLoginPage() {
             const ok = await signInAdmin(form.email, form.password);
             setLoading(false);
             if (!ok) {
-              setError('Sign-in failed. Confirm the account exists in Firebase Auth and has access.');
+              setError(useTailoredStore.getState().lastError || 'Sign-in failed. Confirm the account exists in Firebase Auth and has access.');
               return;
             }
             navigate('/admin/command-center');

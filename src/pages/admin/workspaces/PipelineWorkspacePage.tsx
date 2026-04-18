@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowUpRight, MessagesSquare, PackagePlus } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { AdminAnchorButton, AdminButton, AdminEmptyState, AdminListRow, AdminMetric, AdminModal, AdminPage, AdminPageHeader, AdminStatusChip, AdminSubnav, AdminSurface, AdminSurfaceHeader, AdminToolbar } from '../../../components/admin/AdminUi';
-import { canPerform } from '../../../lib/adminAccess';
+import { canOwnLeads, canPerform, canTakeConsultations, getAssignableTeamMembers } from '../../../lib/adminAccess';
 import { createWhatsAppLink, formatDateTime, generateId } from '../../../lib/utils';
 import { useTailoredStore } from '../../../store/useTailoredStore';
 import type { Consultation, Enquiry, EnquirySource } from '../../../types';
@@ -39,12 +39,20 @@ export function PipelineWorkspacePage() {
   const [editingConsultationId, setEditingConsultationId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
   const [leadForm, setLeadForm] = useState(defaultLeadForm());
-  const [consultationForm, setConsultationForm] = useState({
+  const leadOwnerOptions = useMemo(
+    () => getAssignableTeamMembers(teamMembers, canOwnLeads),
+    [teamMembers],
+  );
+  const designerOptions = useMemo(
+    () => getAssignableTeamMembers(teamMembers, canTakeConsultations),
+    [teamMembers],
+  );
+  const [consultationForm, setConsultationForm] = useState(() => ({
     enquiryId: '',
     scheduledAt: '',
-    assignedDesigner: teamMembers.find((member) => member.role === 'Designer')?.id ?? teamMembers[0]?.id ?? '',
+    assignedDesigner: designerOptions[0]?.id ?? '',
     notes: '',
-  });
+  }));
 
   const clearAction = () => {
     const next = new URLSearchParams(searchParams);
@@ -73,11 +81,26 @@ export function PipelineWorkspacePage() {
   const selectedLead = filteredLeads.find((item) => item.id === selectedLeadId) ?? filteredLeads[0];
   const selectedSession = filteredSessions.find((item) => item.id === selectedSessionId) ?? filteredSessions[0];
   const selectedConsultation = filteredConsultations.find((item) => item.id === selectedConsultationId) ?? filteredConsultations[0];
-  const designerOptions = teamMembers.filter((member) => member.role === 'Designer' || member.role === 'Admin' || member.role === 'Owner');
 
   useEffect(() => {
     if (selectedLead) setConsultationForm((current) => ({ ...current, enquiryId: current.enquiryId || selectedLead.id }));
   }, [selectedLead]);
+
+  useEffect(() => {
+    setConsultationForm((current) => {
+      if (
+        current.assignedDesigner &&
+        designerOptions.some((member) => member.id === current.assignedDesigner)
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        assignedDesigner: designerOptions[0]?.id ?? '',
+      };
+    });
+  }, [designerOptions]);
 
   useEffect(() => {
     if (!filteredLeads.length) {
@@ -189,7 +212,7 @@ export function PipelineWorkspacePage() {
                       <p className="text-[0.68rem] font-medium uppercase tracking-[0.22em] text-tm-warm-gray">Commercial detail</p>
                       <div className="mt-4 grid gap-4 sm:grid-cols-2">
                         <Field label="Status"><SelectInput value={selectedLead.status} disabled={!canEditLead} onChange={(event) => updateEnquiry(selectedLead.id, { status: event.target.value as Enquiry['status'] })}>{['New', 'Consultation Scheduled', 'Quote Sent', 'Negotiation', 'Won', 'Lost'].map((status) => <option key={status} value={status}>{status}</option>)}</SelectInput></Field>
-                        <Field label="Owner"><SelectInput value={selectedLead.assignedTo ?? ''} disabled={!canEditLead} onChange={(event) => assignEnquiry(selectedLead.id, event.target.value)}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</SelectInput></Field>
+                        <Field label="Owner"><SelectInput value={selectedLead.assignedTo ?? ''} disabled={!canEditLead || !leadOwnerOptions.length} onChange={(event) => assignEnquiry(selectedLead.id, event.target.value)}><option value="">Unassigned</option>{leadOwnerOptions.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</SelectInput></Field>
                       </div>
                       <div className="mt-4 grid gap-4 sm:grid-cols-2">
                         <InfoBlock label="Source" value={selectedLead.type} />
@@ -293,7 +316,7 @@ export function PipelineWorkspacePage() {
                 <AdminSurfaceHeader title={selectedConsultation.clientName} description={`Scheduled for ${formatDateTime(selectedConsultation.scheduledAt)}`} action={<div className="flex flex-wrap gap-2">{canManageConsultations ? <AdminButton tone="ghost" onClick={() => openEditConsultationModal(selectedConsultation)}>Edit consultation</AdminButton> : null}{canCreateConsultation ? <AdminButton onClick={() => { setEditingConsultationId(null); setConsultationModalOpen(true); }}>Book another</AdminButton> : null}{canDeleteRecords ? <AdminButton tone="danger" onClick={() => { if (!window.confirm(`Delete consultation for ${selectedConsultation.clientName}? This cannot be undone.`)) return; void deleteConsultation(selectedConsultation.id); }}>Delete consultation</AdminButton> : null}</div>} />
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Status"><SelectInput value={selectedConsultation.status} disabled={!canManageConsultations} onChange={(event) => updateConsultation(selectedConsultation.id, { status: event.target.value as Consultation['status'] })}>{['Scheduled', 'Completed', 'Rescheduled', 'Cancelled'].map((status) => <option key={status} value={status}>{status}</option>)}</SelectInput></Field>
-                  <Field label="Assigned designer"><SelectInput value={selectedConsultation.assignedDesigner} disabled={!canManageConsultations} onChange={(event) => updateConsultation(selectedConsultation.id, { assignedDesigner: event.target.value })}>{designerOptions.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</SelectInput></Field>
+                  <Field label="Assigned designer"><SelectInput value={selectedConsultation.assignedDesigner} disabled={!canManageConsultations} onChange={(event) => updateConsultation(selectedConsultation.id, { assignedDesigner: event.target.value })}><option value="">Unassigned</option>{designerOptions.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</SelectInput></Field>
                 </div>
                 <div className="mt-4 rounded-[1.3rem] border border-black/7 bg-[#fbf7f1] p-4"><p className="text-[0.68rem] font-medium uppercase tracking-[0.22em] text-tm-warm-gray">Outcome framing</p><p className="mt-3 text-sm leading-6 text-tm-warm-gray">{selectedConsultation.status === 'Completed' ? 'Next best action: create or revise the quote within 24 hours while preferences are still fresh.' : 'Next best action: confirm the brief, remind the client, and arrive with finishes and measurements ready.'}</p></div>
                 <Field label="Consultation notes"><TextArea value={selectedConsultation.notes} disabled={!canManageConsultations} onChange={(event) => updateConsultation(selectedConsultation.id, { notes: event.target.value })} placeholder="Travel notes, decision criteria, preferred finishes, delivery constraints..." /></Field>
@@ -334,7 +357,7 @@ export function PipelineWorkspacePage() {
       <AdminModal open={consultationModalOpen} title={editingConsultationId ? 'Edit consultation' : 'Book consultation'} description="Booking and editing stay in one focused sheet so scheduling remains fast, visible, and easy to manage." onClose={() => { setConsultationModalOpen(false); setEditingConsultationId(null); setConsultationForm({ enquiryId: selectedLead?.id ?? '', scheduledAt: '', assignedDesigner: designerOptions[0]?.id ?? '', notes: '' }); clearAction(); }}>
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); const lead = enquiries.find((item) => item.id === consultationForm.enquiryId); if (!lead) return; if (editingConsultationId) { void updateConsultation(editingConsultationId, { enquiryId: lead.id, clientName: lead.clientName, phone: lead.phone, email: lead.email, scheduledAt: consultationForm.scheduledAt, assignedDesigner: consultationForm.assignedDesigner, notes: consultationForm.notes, source: lead.type, visualiserSessionId: lead.visualiserSessionId }); setSelectedConsultationId(editingConsultationId); } else { const consultation: Consultation = { id: generateId('consultation'), enquiryId: lead.id, clientName: lead.clientName, phone: lead.phone, email: lead.email, scheduledAt: consultationForm.scheduledAt, assignedDesigner: consultationForm.assignedDesigner, status: 'Scheduled', source: lead.type, notes: consultationForm.notes, visualiserSessionId: lead.visualiserSessionId }; addConsultation(consultation); updateEnquiry(lead.id, { status: 'Consultation Scheduled' }); setSelectedConsultationId(consultation.id); } setConsultationForm({ enquiryId: selectedLead?.id ?? '', scheduledAt: '', assignedDesigner: designerOptions[0]?.id ?? '', notes: '' }); setConsultationModalOpen(false); setEditingConsultationId(null); clearAction(); }}>
           <Field label="Lead"><SelectInput value={consultationForm.enquiryId} onChange={(event) => setConsultationForm((current) => ({ ...current, enquiryId: event.target.value }))}>{enquiries.map((lead) => <option key={lead.id} value={lead.id}>{lead.clientName}</option>)}</SelectInput></Field>
-          <Field label="Assigned designer"><SelectInput value={consultationForm.assignedDesigner} onChange={(event) => setConsultationForm((current) => ({ ...current, assignedDesigner: event.target.value }))}>{designerOptions.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</SelectInput></Field>
+          <Field label="Assigned designer"><SelectInput value={consultationForm.assignedDesigner} onChange={(event) => setConsultationForm((current) => ({ ...current, assignedDesigner: event.target.value }))}><option value="">Unassigned</option>{designerOptions.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</SelectInput></Field>
           <Field label="Date & time"><TextInput type="datetime-local" value={consultationForm.scheduledAt} onChange={(event) => setConsultationForm((current) => ({ ...current, scheduledAt: event.target.value }))} required /></Field>
           <Field label="Reminder notes"><TextInput value={consultationForm.notes} onChange={(event) => setConsultationForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Measurements, moodboards, access notes..." /></Field>
           <div className="sm:col-span-2 flex justify-end gap-3"><AdminButton type="button" tone="ghost" onClick={() => { setConsultationModalOpen(false); setEditingConsultationId(null); setConsultationForm({ enquiryId: selectedLead?.id ?? '', scheduledAt: '', assignedDesigner: designerOptions[0]?.id ?? '', notes: '' }); clearAction(); }}>Cancel</AdminButton><AdminButton type="submit">{editingConsultationId ? 'Save changes' : 'Confirm consultation'}</AdminButton></div>
