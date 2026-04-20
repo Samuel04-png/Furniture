@@ -28,6 +28,7 @@ const createDefaultMemberForm = () => ({
   role: 'Sales' as TeamRole,
   email: '',
   phone: '',
+  password: '',
   isPublicProfile: 'false',
   bio: '',
   avatarUrl: '',
@@ -87,10 +88,13 @@ export function SystemWorkspacePage() {
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [teamNotice, setTeamNotice] = useState<string | null>(null);
+  const [teamError, setTeamError] = useState<string | null>(null);
   const [memberForm, setMemberForm] = useState(createDefaultMemberForm());
   const [templateForm, setTemplateForm] = useState(createDefaultTemplateForm());
   const [companyForm, setCompanyForm] = useState(createCompanyForm(companySettings));
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [isSavingMember, setIsSavingMember] = useState(false);
+  const [disablingMemberId, setDisablingMemberId] = useState<string | null>(null);
 
   useEffect(() => {
     setCompanyForm(createCompanyForm(companySettings));
@@ -110,8 +114,17 @@ export function SystemWorkspacePage() {
       .map((part) => part[0]?.toUpperCase() ?? '')
       .join('') || 'TM';
 
+  const closeTeamModal = () => {
+    setTeamModalOpen(false);
+    setEditingMemberId(null);
+    setAvatarFile(null);
+    setTeamError(null);
+    setMemberForm(createDefaultMemberForm());
+  };
+
   const openCreateTeamModal = () => {
     setEditingMemberId(null);
+    setTeamError(null);
     setMemberForm(createDefaultMemberForm());
     setAvatarFile(null);
     setTeamModalOpen(true);
@@ -119,11 +132,13 @@ export function SystemWorkspacePage() {
 
   const openEditTeamModal = (member: TeamMember) => {
     setEditingMemberId(member.id);
+    setTeamError(null);
     setMemberForm({
       name: member.name,
       role: member.role,
       email: member.email,
       phone: member.phone,
+      password: '',
       isPublicProfile: member.isPublicProfile ? 'true' : 'false',
       bio: member.bio ?? '',
       avatarUrl: member.avatarUrl ?? '',
@@ -158,6 +173,7 @@ export function SystemWorkspacePage() {
           <AdminSurface>
             <AdminSurfaceHeader title="Team & roles" description="Add people here, then assign them inside the pipeline through owner and designer fields." action={<AdminButton onClick={openCreateTeamModal}>Add team member</AdminButton>} />
             {teamNotice ? <div className="mb-4 rounded-[1.15rem] border border-[#dfc69d] bg-[#fbf6ed] px-4 py-3 text-sm text-tm-warm-gray">{teamNotice}</div> : null}
+            {teamError ? <div className="mb-4 rounded-[1.15rem] border border-[#d9a8a8] bg-[#fff6f5] px-4 py-3 text-sm text-[#8f1e1e]">{teamError}</div> : null}
             <div className="grid gap-4 md:grid-cols-2">
               {teamCards.map((member) => (
                 <div key={member.id} className="rounded-[1.35rem] border border-black/7 bg-[#fbf7f1] p-4">
@@ -180,7 +196,7 @@ export function SystemWorkspacePage() {
                   <p className="mt-4 text-sm leading-6 text-tm-warm-gray">{member.bio || (member.canTakeConsultations ? 'This role appears in both lead ownership and consultation assignment flows.' : 'This role can still own leads in the pipeline, but is not shown in the consultation designer picker.')}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <AdminButton tone="ghost" onClick={() => openEditTeamModal(member)}>Edit member</AdminButton>
-                    {member.status !== 'Disabled' ? <AdminButton tone="danger" onClick={() => { if (!window.confirm(`Disable access for ${member.name}? They will no longer be able to sign in.`)) return; void disableTeamMember(member.id); }}>Disable access</AdminButton> : null}
+                    {member.status !== 'Disabled' ? <AdminButton tone="danger" disabled={disablingMemberId === member.id} onClick={async () => { if (!window.confirm(`Disable access for ${member.name}? They will no longer be able to sign in.`)) return; setTeamError(null); setDisablingMemberId(member.id); try { await disableTeamMember(member.id); setTeamNotice(`${member.name} has been deactivated.`); } catch (error) { console.error('Failed to disable team member:', error); setTeamError(`We could not disable ${member.name} right now.`); } finally { setDisablingMemberId(null); } }}>{disablingMemberId === member.id ? 'Disabling...' : 'Disable access'}</AdminButton> : null}
                   </div>
                 </div>
               ))}
@@ -289,43 +305,56 @@ export function SystemWorkspacePage() {
 
       {tab === 'automations' ? <AutomationPanel /> : null}
 
-      <AdminModal open={teamModalOpen} title={editingMemberId ? 'Edit team member' : 'Add team member'} description={editingMemberId ? 'Update team details, public profile settings, and access role here.' : 'Adding someone here immediately makes them available in role-based access and pipeline assignment flows.'} onClose={() => { setTeamModalOpen(false); setEditingMemberId(null); setAvatarFile(null); }}>
+      <AdminModal open={teamModalOpen} title={editingMemberId ? 'Edit team member' : 'Add team member'} description={editingMemberId ? 'Update team details, public profile settings, and access role here.' : 'Adding someone here immediately makes them available in role-based access and pipeline assignment flows.'} onClose={closeTeamModal}>
         <form
           className="grid gap-4 sm:grid-cols-2"
           onSubmit={async (event) => {
             event.preventDefault();
-            const isPublicProfile = memberForm.isPublicProfile === 'true';
-            const basePatch = { name: memberForm.name, role: memberForm.role, email: memberForm.email, phone: memberForm.phone, initials: createInitials(memberForm.name), isPublicProfile, bio: memberForm.bio, avatarUrl: memberForm.avatarUrl };
+            setTeamError(null);
+            setIsSavingMember(true);
+            try {
+              const isPublicProfile = memberForm.isPublicProfile === 'true';
+              const basePatch = { name: memberForm.name, role: memberForm.role, email: memberForm.email, phone: memberForm.phone, initials: createInitials(memberForm.name), publicProfile: isPublicProfile, isPublicProfile, bio: memberForm.bio, avatarUrl: memberForm.avatarUrl };
 
-            if (editingMemberId) {
-              const uploadedAvatar = avatarFile ? await uploadWebsiteMedia('team-profiles', editingMemberId, 'avatar', avatarFile) : null;
-              await updateTeamMember(editingMemberId, { ...basePatch, avatarUrl: uploadedAvatar?.url || memberForm.avatarUrl, avatarPath: uploadedAvatar?.path ?? undefined });
-              setTeamNotice(`Updated ${memberForm.name}.`);
-            } else {
-              const created = await addTeamMember({ id: generateId('team'), name: memberForm.name, role: memberForm.role, email: memberForm.email, phone: memberForm.phone, initials: createInitials(memberForm.name), isPublicProfile, bio: memberForm.bio, avatarUrl: memberForm.avatarUrl });
-              if (!created) return;
-              if (isPublicProfile || memberForm.bio || memberForm.avatarUrl || avatarFile) {
-                const uploadedAvatar = avatarFile ? await uploadWebsiteMedia('team-profiles', created.uid, 'avatar', avatarFile) : null;
-                await updateTeamMember(created.uid, { isPublicProfile, bio: memberForm.bio, avatarUrl: uploadedAvatar?.url || memberForm.avatarUrl, avatarPath: uploadedAvatar?.path ?? undefined });
+              if (editingMemberId) {
+                const uploadedAvatar = avatarFile ? await uploadWebsiteMedia('team-profiles', editingMemberId, 'avatar', avatarFile) : null;
+                await updateTeamMember(editingMemberId, { ...basePatch, avatarUrl: uploadedAvatar?.url || memberForm.avatarUrl, avatarPath: uploadedAvatar?.path ?? undefined });
+                setTeamNotice(`Updated ${memberForm.name}.`);
+              } else {
+                const created = await addTeamMember({ displayName: memberForm.name, email: memberForm.email, password: memberForm.password, role: memberForm.role, avatarUrl: memberForm.avatarUrl, publicProfile: isPublicProfile });
+                if (!created) {
+                  setTeamError('We could not create this team member right now.');
+                  return;
+                }
+                if (isPublicProfile || memberForm.bio || memberForm.avatarUrl || avatarFile || memberForm.phone) {
+                  const uploadedAvatar = avatarFile ? await uploadWebsiteMedia('team-profiles', created.uid, 'avatar', avatarFile) : null;
+                  await updateTeamMember(created.uid, { phone: memberForm.phone, publicProfile: isPublicProfile, isPublicProfile, bio: memberForm.bio, avatarUrl: uploadedAvatar?.url || memberForm.avatarUrl, avatarPath: uploadedAvatar?.path ?? undefined, active: true });
+                }
+                setTeamNotice(`Account created for ${memberForm.name}.`);
               }
-              setTeamNotice(`Account created for ${memberForm.name}. Temporary password: ${created.temporaryPassword}`);
-            }
 
-            setMemberForm(createDefaultMemberForm());
-            setAvatarFile(null);
-            setTeamModalOpen(false);
-            setEditingMemberId(null);
+              closeTeamModal();
+            } catch (error) {
+              console.error('Failed to save team member:', error);
+              setTeamError('We could not save this team member right now. Please try again.');
+            } finally {
+              setIsSavingMember(false);
+            }
           }}
         >
           <Field label="Full name"><TextInput value={memberForm.name} onChange={(event) => setMemberForm((current) => ({ ...current, name: event.target.value }))} required /></Field>
           <Field label="Role"><SelectInput value={memberForm.role} onChange={(event) => setMemberForm((current) => ({ ...current, role: event.target.value as TeamRole }))}>{roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}</SelectInput></Field>
           <Field label="Email"><TextInput type="email" value={memberForm.email} onChange={(event) => setMemberForm((current) => ({ ...current, email: event.target.value }))} required /></Field>
-          <Field label="Phone"><TextInput value={memberForm.phone} onChange={(event) => setMemberForm((current) => ({ ...current, phone: event.target.value }))} required /></Field>
+          <Field label="Phone"><TextInput value={memberForm.phone} onChange={(event) => setMemberForm((current) => ({ ...current, phone: event.target.value }))} /></Field>
+          {!editingMemberId ? <Field label="Password"><TextInput type="password" value={memberForm.password} onChange={(event) => setMemberForm((current) => ({ ...current, password: event.target.value }))} required /></Field> : null}
           <Field label="Public profile"><SelectInput value={memberForm.isPublicProfile} onChange={(event) => setMemberForm((current) => ({ ...current, isPublicProfile: event.target.value }))}><option value="false">Internal only</option><option value="true">Show on website</option></SelectInput></Field>
-          <Field label="Avatar URL"><TextInput value={memberForm.avatarUrl} onChange={(event) => setMemberForm((current) => ({ ...current, avatarUrl: event.target.value }))} placeholder="https://..." /></Field>
-          <Field label="Avatar file"><TextInput type="file" accept="image/*" onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)} /></Field>
+          <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+            <Field label="Upload from device"><TextInput type="file" accept="image/*" onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)} /></Field>
+            <Field label="Or paste an image URL"><TextInput value={memberForm.avatarUrl} onChange={(event) => setMemberForm((current) => ({ ...current, avatarUrl: event.target.value }))} placeholder="https://..." /></Field>
+          </div>
           <Field label="Bio"><TextArea value={memberForm.bio} onChange={(event) => setMemberForm((current) => ({ ...current, bio: event.target.value }))} className="min-h-[120px]" /></Field>
-          <div className="sm:col-span-2 flex justify-end gap-3"><AdminButton type="button" tone="ghost" onClick={() => { setTeamModalOpen(false); setEditingMemberId(null); setAvatarFile(null); }}>Cancel</AdminButton><AdminButton type="submit">{editingMemberId ? 'Save changes' : 'Add member'}</AdminButton></div>
+          {teamError ? <p className="sm:col-span-2 rounded-[1rem] border border-[#d9a8a8] bg-[#fff6f5] px-4 py-3 text-sm text-[#8f1e1e]">{teamError}</p> : null}
+          <div className="sm:col-span-2 flex justify-end gap-3"><AdminButton type="button" tone="ghost" disabled={isSavingMember} onClick={closeTeamModal}>Cancel</AdminButton><AdminButton type="submit" disabled={isSavingMember}>{isSavingMember ? 'Saving...' : editingMemberId ? 'Save changes' : 'Add member'}</AdminButton></div>
         </form>
       </AdminModal>
 

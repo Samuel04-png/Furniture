@@ -20,12 +20,18 @@ import { useTailoredStore } from '../../../store/useTailoredStore';
 import type { AccountingRecord, AccountingStatus, AccountingType } from '../../../types';
 import { Field, financeTabLabel, financeTabs, InfoBlock, mapFinanceTab, SearchField, SelectInput, TextInput, toneForFinance, useActiveAdmin } from './shared';
 
+function todayDateInputValue() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
 const createDefaultForm = (tab: (typeof financeTabs)[number]) => ({
   type: mapFinanceTab(tab),
   title: '',
   clientName: '',
   amount: '',
-  dueDate: '',
+  dueDate: todayDateInputValue(),
   status: 'Draft' as AccountingStatus,
 });
 
@@ -43,6 +49,11 @@ export function FinanceWorkspacePage() {
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState(createDefaultForm(tab));
+  const [pageError, setPageError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [isSavingRecord, setIsSavingRecord] = useState(false);
+  const [isUpdatingRecordId, setIsUpdatingRecordId] = useState<string | null>(null);
+  const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
   const canEditFinance = canPerform('finance.edit', activeMember?.role);
   const canDeleteFinance = canPerform('system.manage', activeMember?.role);
 
@@ -59,10 +70,12 @@ export function FinanceWorkspacePage() {
   const openCreateModal = () => {
     setEditingRecordId(null);
     resetForm();
+    setFormError('');
     setRecordModalOpen(true);
   };
   const openEditModal = (record: AccountingRecord) => {
     setEditingRecordId(record.id);
+    setFormError('');
     setForm({
       type: record.type,
       title: record.title,
@@ -112,6 +125,12 @@ export function FinanceWorkspacePage() {
         <SearchField value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${financeTabLabel(tab).toLowerCase()}`} />
       </AdminToolbar>
 
+      {pageError ? (
+        <div className="rounded-[1.2rem] border border-[#d9a8a8] bg-[#fff6f5] px-4 py-3 text-sm leading-6 text-[#7d2f2f]">
+          {pageError}
+        </div>
+      ) : null}
+
       <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
         <AdminSurface className="space-y-3">
           <AdminSurfaceHeader title={financeTabLabel(tab)} description="Select a record to inspect status, due date, and linked commercial context." />
@@ -141,17 +160,47 @@ export function FinanceWorkspacePage() {
                 action={
                   canEditFinance ? (
                     <div className="flex flex-wrap gap-2">
-                      {selectedRecord.status !== 'Paid' ? <AdminButton tone="secondary" onClick={() => updateAccountingRecord(selectedRecord.id, { status: 'Paid' })}>Mark paid</AdminButton> : null}
-                      <AdminButton tone="ghost" onClick={() => openEditModal(selectedRecord)}>Edit record</AdminButton>
+                      {selectedRecord.status !== 'Paid' ? (
+                        <AdminButton
+                          tone="secondary"
+                          disabled={isUpdatingRecordId === selectedRecord.id || deletingRecordId === selectedRecord.id}
+                          onClick={async () => {
+                            setPageError('');
+                            setIsUpdatingRecordId(selectedRecord.id);
+                            try {
+                              await updateAccountingRecord(selectedRecord.id, { status: 'Paid' });
+                            } catch (error) {
+                              console.error('Failed to update finance record status:', error);
+                              setPageError('We could not update the payment status right now.');
+                            } finally {
+                              setIsUpdatingRecordId(null);
+                            }
+                          }}
+                        >
+                          {isUpdatingRecordId === selectedRecord.id ? 'Saving...' : 'Mark paid'}
+                        </AdminButton>
+                      ) : null}
+                      <AdminButton tone="ghost" disabled={deletingRecordId === selectedRecord.id} onClick={() => openEditModal(selectedRecord)}>Edit record</AdminButton>
                       {canDeleteFinance ? (
                         <AdminButton
                           tone="danger"
-                          onClick={() => {
+                          disabled={deletingRecordId === selectedRecord.id}
+                          onClick={async () => {
                             if (!window.confirm(`Delete ${selectedRecord.title}? This cannot be undone.`)) return;
-                            void deleteAccountingRecord(selectedRecord.id);
+                            setPageError('');
+                            setDeletingRecordId(selectedRecord.id);
+                            try {
+                              await deleteAccountingRecord(selectedRecord.id);
+                              setSelectedRecordId(undefined);
+                            } catch (error) {
+                              console.error('Failed to delete finance record:', error);
+                              setPageError('We could not delete this finance record right now.');
+                            } finally {
+                              setDeletingRecordId(null);
+                            }
                           }}
                         >
-                          Delete record
+                          {deletingRecordId === selectedRecord.id ? 'Deleting...' : 'Delete record'}
                         </AdminButton>
                       ) : null}
                     </div>
@@ -180,29 +229,60 @@ export function FinanceWorkspacePage() {
         </AdminSurface>
       </div>
 
-      <AdminModal open={recordModalOpen} title={editingRecordId ? `Edit ${financeTabLabel(tab).slice(0, -1)}` : `New ${financeTabLabel(tab).slice(0, -1)}`} description="Create and edit actions stay in a dedicated modal so reporting stays clean and easy to scan." onClose={() => { setRecordModalOpen(false); setEditingRecordId(null); clearAction(); }}>
+      <AdminModal open={recordModalOpen} title={editingRecordId ? `Edit ${financeTabLabel(tab).slice(0, -1)}` : `New ${financeTabLabel(tab).slice(0, -1)}`} description="Create and edit actions stay in a dedicated modal so reporting stays clean and easy to scan." onClose={() => { setRecordModalOpen(false); setEditingRecordId(null); setFormError(''); clearAction(); }}>
         <form
           className="grid gap-4 sm:grid-cols-2"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
-            if (editingRecordId) {
-              void updateAccountingRecord(editingRecordId, { type: form.type as AccountingType, title: form.title, clientName: form.clientName, amount: Number(form.amount || 0), status: form.status, dueDate: form.dueDate });
-            } else {
-              void addAccountingRecord({ id: generateId('acct'), type: form.type as AccountingType, title: form.title, clientName: form.clientName, amount: Number(form.amount || 0), status: form.status, dueDate: form.dueDate, issuedDate: new Date().toISOString() });
+            const trimmedTitle = form.title.trim();
+            if (!trimmedTitle) {
+              setFormError('Add a title before saving this record.');
+              return;
             }
-            resetForm();
-            setRecordModalOpen(false);
-            setEditingRecordId(null);
-            clearAction();
+            setFormError('');
+            setPageError('');
+            setIsSavingRecord(true);
+            try {
+              const payload = {
+                type: form.type as AccountingType,
+                title: trimmedTitle,
+                clientName: form.clientName.trim(),
+                amount: Math.max(0, Number(form.amount || 0)),
+                status: form.status,
+                dueDate: form.dueDate || todayDateInputValue(),
+              };
+              if (editingRecordId) {
+                await updateAccountingRecord(editingRecordId, payload);
+                setSelectedRecordId(editingRecordId);
+              } else {
+                const recordId = generateId('acct');
+                await addAccountingRecord({ id: recordId, ...payload, issuedDate: new Date().toISOString() });
+                setSelectedRecordId(recordId);
+              }
+              resetForm();
+              setRecordModalOpen(false);
+              setEditingRecordId(null);
+              clearAction();
+            } catch (error) {
+              console.error('Failed to save finance record:', error);
+              setFormError('We could not save this finance record right now. Please try again.');
+            } finally {
+              setIsSavingRecord(false);
+            }
           }}
         >
+          {formError ? (
+            <div className="sm:col-span-2 rounded-[1.1rem] border border-[#d9a8a8] bg-[#fff6f5] px-4 py-3 text-sm leading-6 text-[#7d2f2f]">
+              {formError}
+            </div>
+          ) : null}
           <Field label="Type"><SelectInput value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value as AccountingType }))}>{['Invoice', 'Deposit', 'Expense', 'Purchase Order'].map((type) => (<option key={type} value={type}>{type}</option>))}</SelectInput></Field>
           <Field label="Title"><TextInput value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} required /></Field>
           <Field label="Client or supplier"><TextInput value={form.clientName} onChange={(event) => setForm((current) => ({ ...current, clientName: event.target.value }))} /></Field>
-          <Field label="Amount"><TextInput type="number" min={0} value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} required /></Field>
-          <Field label="Due date"><TextInput type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} required /></Field>
+          <Field label="Amount"><TextInput type="number" min={0} value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} /></Field>
+          <Field label="Due date"><TextInput type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} /></Field>
           <Field label="Status"><SelectInput value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as AccountingStatus }))}>{['Draft', 'Issued', 'Paid', 'Overdue'].map((status) => (<option key={status} value={status}>{status}</option>))}</SelectInput></Field>
-          <div className="sm:col-span-2 flex justify-end gap-3"><AdminButton type="button" tone="ghost" onClick={() => { setRecordModalOpen(false); setEditingRecordId(null); clearAction(); }}>Cancel</AdminButton><AdminButton type="submit">{editingRecordId ? 'Save changes' : 'Save record'}</AdminButton></div>
+          <div className="sm:col-span-2 flex justify-end gap-3"><AdminButton type="button" tone="ghost" disabled={isSavingRecord} onClick={() => { setRecordModalOpen(false); setEditingRecordId(null); setFormError(''); clearAction(); }}>Cancel</AdminButton><AdminButton type="submit" disabled={isSavingRecord}>{isSavingRecord ? 'Saving...' : editingRecordId ? 'Save changes' : 'Save record'}</AdminButton></div>
         </form>
       </AdminModal>
     </AdminPage>

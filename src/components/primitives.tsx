@@ -2,7 +2,7 @@ import React, { type InputHTMLAttributes, type ReactNode, type SelectHTMLAttribu
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import Button from './Button';
-import { cn, formatCurrency } from '../lib/utils';
+import { cn, formatCurrency, getProductDisplayCategory } from '../lib/utils';
 import type { DimensionSet, Product } from '../types';
 import Image from './Image';
 
@@ -148,6 +148,8 @@ export function PageHero({
 }
 
 export function ProductCard({ product, priority = false }: { product: Product; priority?: boolean }) {
+  const displayCategory = getProductDisplayCategory(product);
+
   return (
     <Link
       to={`/collections/${product.slug}`}
@@ -163,7 +165,7 @@ export function ProductCard({ product, priority = false }: { product: Product; p
 
       <div className="absolute inset-0 bg-[rgba(12,12,12,0.3)] opacity-0 transition duration-300 ease-out group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100" />
       <div className="absolute inset-x-0 bottom-0 p-6 opacity-100 transition duration-300 ease-out md:translate-y-3 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100">
-        <p className="font-dm text-[11px] uppercase tracking-[0.2em] text-tm-gold">{product.category}</p>
+        <p className="font-dm text-[11px] uppercase tracking-[0.2em] text-tm-gold">{displayCategory}</p>
         <h3 className="mt-3 font-cormorant text-[20px] font-medium leading-none tracking-[-0.02em] text-tm-cream">
           {product.name}
         </h3>

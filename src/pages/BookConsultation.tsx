@@ -3,12 +3,14 @@ import { MessageCircle } from 'lucide-react';
 import Button from '../components/Button';
 import { InputField, PageHero, SectionIntro, SelectField, TextAreaField } from '../components/primitives';
 import { createWhatsAppLink } from '../lib/utils';
-import { asset } from '../config/site';
+import { getWebsiteMediaItem } from '../lib/websiteMedia';
 import { useTailoredStore } from '../store/useTailoredStore';
 
 
 export default function BookConsultation() {
   const createConsultationRequest = useTailoredStore((state) => state.createConsultationRequest);
+  const companySettings = useTailoredStore((state) => state.companySettings);
+  const heroMedia = getWebsiteMediaItem(companySettings, 'bookConsultationHero');
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [form, setForm] = useState({
@@ -49,7 +51,7 @@ export default function BookConsultation() {
         eyebrow="Consultation booking"
         title="Book a tailored design consultation"
         body="Bring your room dimensions, inspiration, or just the challenge. The team will guide you toward the right piece and finish direction."
-        image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (1).jpg')}
+        image={heroMedia.image}
         heightClassName="min-h-[56svh]"
 
       />
@@ -69,8 +71,8 @@ export default function BookConsultation() {
                   <Button href={whatsappLink} target="_blank" rel="noreferrer" variant="primary" icon={<MessageCircle className="h-4 w-4" />}>
                     Continue on WhatsApp
                   </Button>
-                  <Button to="/visualise" variant="minimal" className="text-tm-obsidian">
-                    Try the visualiser
+                  <Button to="/configure" variant="minimal" className="text-tm-obsidian">
+                    Start configuring
                   </Button>
                 </div>
               </div>

@@ -6,7 +6,7 @@ import { cn } from '../lib/utils';
 import Button from '../components/Button';
 import HeroSection from '../components/HeroSection';
 import { ProductCard, Reveal, SectionIntro } from '../components/primitives';
-import { asset } from '../config/site';
+import { getWebsiteMediaItem } from '../lib/websiteMedia';
 import { useTailoredStore } from '../store/useTailoredStore';
 import Image from '../components/Image';
 
@@ -26,7 +26,7 @@ const servicePillars = [
   },
   {
     title: 'Layered visual clarity',
-    body: 'The visualiser, material library, and quote flow are designed to help clients commit faster with fewer doubts.',
+    body: 'The configurator, material library, and quote flow are designed to help clients commit faster with fewer doubts.',
     icon: Layers3,
   },
   {
@@ -45,6 +45,7 @@ export default function Home() {
   const products = useTailoredStore((state) => state.products);
   const materials = useTailoredStore((state) => state.materials);
   const testimonials = useTailoredStore((state) => state.testimonials);
+  const companySettings = useTailoredStore((state) => state.companySettings);
   const [testimonialIndex, setTestimonialIndex] = useState(0);
 
   useEffect(() => {
@@ -67,6 +68,7 @@ export default function Home() {
   }, [products]);
   const heroProducts = useMemo(() => featuredProducts.slice(0, 4), [featuredProducts]);
   const spotlightTestimonial = testimonials[testimonialIndex];
+  const signatureFeature = getWebsiteMediaItem(companySettings, 'homeSignatureFeature');
 
   return (
     <div className="overflow-hidden bg-tm-off-white">
@@ -126,9 +128,8 @@ export default function Home() {
             <div className="relative">
               <Reveal className="group relative h-full min-h-[500px] overflow-hidden rounded-[3rem]">
                 <Image
-                  src={asset('bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (4).jpg')}
-
-                  alt="Craftsman hands working on premium Zambian hardwood"
+                  src={signatureFeature.image}
+                  alt={signatureFeature.alt}
                   fill
                   className="transition-transform duration-1000 group-hover:scale-105"
                 />
@@ -370,7 +371,7 @@ export default function Home() {
           <SectionIntro
             eyebrow="Ready to begin"
             title="Your room is waiting."
-            body="Talk to us. We will design, build, visualise, and install your perfect space with one connected team."
+            body="Talk to us. We will design, build, and install your perfect space with one connected team."
             align="center"
             dark
           />

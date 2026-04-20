@@ -130,11 +130,13 @@ export function AdminAnchorButton({
 
 export function AdminSubnav({
   items,
+  className,
 }: {
   items: Array<{ label: string; href: string; active?: boolean; count?: number }>;
+  className?: string;
 }) {
   return (
-    <div className="hide-scrollbar flex gap-2.5 overflow-x-auto overscroll-x-contain pb-1 scroll-px-1">
+    <div className={cn('hide-scrollbar flex gap-2.5 overflow-x-auto overscroll-x-contain pb-1 scroll-px-1', className)}>
       {items.map((item) => (
         <Link
           key={item.href}
@@ -399,6 +401,7 @@ export function AdminListRow({
   active,
   onClick,
   status,
+  className,
 }: {
   title: string;
   subtitle?: string;
@@ -406,6 +409,7 @@ export function AdminListRow({
   active?: boolean;
   onClick?: () => void;
   status?: ReactNode;
+  className?: string;
 }) {
   return (
     <button
@@ -416,6 +420,7 @@ export function AdminListRow({
         active
           ? 'border-[#d8c19b] bg-[#fbf6ef]'
           : 'border-black/6 bg-white hover:border-black/10 hover:bg-[#fbf7f1]',
+        className,
       )}
     >
       <div className="min-w-0 flex-1">

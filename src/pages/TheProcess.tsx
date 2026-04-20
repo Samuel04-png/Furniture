@@ -1,7 +1,8 @@
 import { ArrowRight } from 'lucide-react';
 import Button from '../components/Button';
 import { PageHero, Reveal, SectionIntro } from '../components/primitives';
-import { asset } from '../config/site';
+import { getWebsiteMediaItem } from '../lib/websiteMedia';
+import { useTailoredStore } from '../store/useTailoredStore';
 
 
 const steps = [
@@ -12,13 +13,16 @@ const steps = [
 ];
 
 export default function TheProcess() {
+  const companySettings = useTailoredStore((state) => state.companySettings);
+  const heroMedia = getWebsiteMediaItem(companySettings, 'theProcessHero');
+
   return (
     <div className="bg-tm-off-white">
       <PageHero
         eyebrow="The Tailored Manor method"
         title="Designed to feel personal from the first enquiry"
-        body="The digital platform mirrors the studio process: discover, visualise, specify, then hand off to production without friction."
-        image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (3).jpg')}
+        body="The digital platform mirrors the studio process: discover, specify, then hand off to production without friction."
+        image={heroMedia.image}
         heightClassName="min-h-[58svh]"
 
       />

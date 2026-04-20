@@ -13,7 +13,7 @@ export default function Footer() {
           <div className="max-w-md">
             <WordmarkLockup inverted />
             <p className="mt-10 font-dm text-[16px] leading-[1.75] text-[rgba(245,239,230,0.7)]">
-              Bespoke hardwood furniture, tailored room visualisation, and end-to-end delivery for homes that want more than off-the-shelf interiors.
+              Bespoke hardwood furniture, room-first planning, and end-to-end delivery for homes that want more than off-the-shelf interiors.
             </p>
             <div className="mt-10">
               <Button to="/admin" variant="minimal" icon={<ArrowUpRight className="h-4 w-4" />} iconPosition="right">
@@ -34,9 +34,9 @@ export default function Footer() {
           <FooterColumn
             title="Services"
             links={[
-              ['Visualise Your Space', '/visualise'],
               ['Custom Quote', '/configure'],
               ['Book Consultation', '/book-consultation'],
+              ['The Process', '/the-process'],
               ['Contact', '/contact'],
             ]}
           />

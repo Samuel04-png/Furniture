@@ -7,16 +7,18 @@ import {
   patchDocument,
   removeDocument,
   subscribeCollection,
-  subscribeDocument,
+  subscribeMergedDocument,
+  upsertDocument,
 } from '../firestore';
 
 export function subscribeAdminCompanySettings(
   onData: (settings: CompanySettings) => void,
   onError?: (message: string) => void,
 ) {
-  return subscribeDocument<CompanySettings>(
-    'settings',
-    'companyProfile',
+  return subscribeMergedDocument<CompanySettings>(
+    [
+      { key: 'settings', path: 'settings', id: 'companyProfile', priority: 1 },
+    ],
     (settings) => onData(settings ?? emptyCompanySettings),
     (error) => {
       console.error('Failed to subscribe to company settings:', error);
@@ -59,7 +61,7 @@ export async function updateCompanySettings(
   patch: Partial<CompanySettings>,
   user?: UserIdentity | null,
 ) {
-  await patchDocument<CompanySettings>('settings', 'companyProfile', patch, user);
+  await upsertDocument<CompanySettings>('settings', 'companyProfile', patch, user);
 }
 
 export async function createTemplate(

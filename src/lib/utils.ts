@@ -1,6 +1,8 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { DimensionSet } from '../types';
+import type { DimensionSet, Product } from '../types';
+
+export const DEFAULT_WHATSAPP_NUMBER = '260766439896';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -12,6 +14,27 @@ export function formatCurrency(value: number) {
     currency: 'ZMW',
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+export function getProductDisplayCategory(product: Pick<Product, 'category' | 'name' | 'tags'>) {
+  const haystack = `${product.name} ${product.tags.join(' ')}`.toLowerCase();
+
+  if (haystack.includes('stone') && (haystack.includes('light') || haystack.includes('lamp') || haystack.includes('pendant'))) {
+    return 'Stone Lights';
+  }
+
+  if (
+    haystack.includes('lighting') ||
+    haystack.includes('light') ||
+    haystack.includes('lamp') ||
+    haystack.includes('pendant') ||
+    haystack.includes('sconce') ||
+    haystack.includes('chandelier')
+  ) {
+    return 'Lighting';
+  }
+
+  return product.category;
 }
 
 export function formatDate(dateLike: string) {
@@ -44,9 +67,23 @@ export function generateId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function createWhatsAppLink(message: string, number = '260766439896') {
+export function normalizePhoneNumber(value: string) {
+  return value.replace(/\D/g, '');
+}
 
-  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+export function sanitizeSocialHandle(value: string) {
+  return value
+    .trim()
+    .replace(/^https?:\/\/(www\.)?(m\.)?(facebook\.com|m\.me)\//i, '')
+    .replace(/^@/, '')
+    .replace(/[/?#].*$/, '')
+    .replace(/\/+$/, '');
+}
+
+export function createWhatsAppLink(message: string, number = DEFAULT_WHATSAPP_NUMBER) {
+  const resolvedNumber = normalizePhoneNumber(number) || DEFAULT_WHATSAPP_NUMBER;
+
+  return `https://wa.me/${resolvedNumber}?text=${encodeURIComponent(message)}`;
 }
 
 export function dimensionsLabel(dimensions: DimensionSet) {

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import {
   createTeamMember as createTeamMemberRemote,
   disableTeamMember as disableTeamMemberRemote,
+  type CreateTeamMemberPayload,
   type CreateTeamMemberResult,
   subscribeTeamMembers,
   updateTeamMember as updateTeamMemberRemote,
@@ -44,16 +45,20 @@ import {
   createConsultation as createConsultationRemote,
   createConsultationRequest as createConsultationRequestRemote,
   createEnquiry as createEnquiryRemote,
+  createQuote as createQuoteRemote,
   createQuoteRequest as createQuoteRequestRemote,
   createVisualiserSubmission as createVisualiserSubmissionRemote,
   deleteConsultation as deleteConsultationRemote,
   deleteEnquiry as deleteEnquiryRemote,
+  deleteQuote as deleteQuoteRemote,
   deleteVisualiserSession as deleteVisualiserSessionRemote,
   subscribeConsultations,
   subscribeEnquiries,
+  subscribeQuotes,
   subscribeVisualiserSessions,
   updateConsultation as updateConsultationRemote,
   updateEnquiry as updateEnquiryRemote,
+  updateQuote as updateQuoteRemote,
   updateVisualiserSessionStatus as updateVisualiserSessionStatusRemote,
 } from '../lib/backend/repositories/crm';
 import {
@@ -109,14 +114,15 @@ import type {
   Material,
   NotificationRecord,
   NotificationTemplate,
-  PlacedVisualiserItem,
   PortfolioProject,
   Product,
   ProductionOrder,
   ProductionStage,
+  QuoteRecord,
   SampleRoom,
   TeamMember,
   Testimonial,
+  PlacedVisualiserItem,
   VisualiserDraft,
   VisualiserSession,
   VisualiserSessionStatus,
@@ -157,14 +163,6 @@ const defaultConfiguratorDraft: ConfiguratorDraft = {
   uploadedSpacePhotoPath: null,
 };
 
-interface VisualiserSubmissionPayload {
-  clientName: string;
-  phone: string;
-  email: string;
-  preferredDateTime?: string;
-  notes?: string;
-}
-
 interface ConsultationRequestPayload {
   clientName: string;
   phone: string;
@@ -178,6 +176,14 @@ interface ConsultationRequestPayload {
 
 interface QuoteRequestPayload {
   preferredDateTime?: string;
+}
+
+interface VisualiserSubmissionPayload {
+  clientName: string;
+  phone: string;
+  email: string;
+  preferredDateTime?: string;
+  notes?: string;
 }
 
 interface AuthUserState {
@@ -210,6 +216,7 @@ interface TailoredStore {
   enquiries: Enquiry[];
   visualiserSessions: VisualiserSession[];
   consultations: Consultation[];
+  quotes: QuoteRecord[];
   productionOrders: ProductionOrder[];
   inventoryItems: InventoryItem[];
   accountingRecords: AccountingRecord[];
@@ -242,7 +249,7 @@ interface TailoredStore {
   updatePortfolioProject: (projectId: string, patch: Partial<PortfolioProject>) => Promise<void>;
   deletePortfolioProject: (projectId: string) => Promise<void>;
   updateCompanySettings: (patch: Partial<CompanySettings>) => Promise<void>;
-  addTeamMember: (member: TeamMember) => Promise<CreateTeamMemberResult | null>;
+  addTeamMember: (payload: CreateTeamMemberPayload) => Promise<CreateTeamMemberResult | null>;
   updateTeamMember: (teamMemberId: string, patch: Partial<TeamMember>) => Promise<void>;
   disableTeamMember: (teamMemberId: string) => Promise<void>;
   addNotificationTemplate: (template: NotificationTemplate) => Promise<void>;
@@ -275,6 +282,9 @@ interface TailoredStore {
   addConsultation: (consultation: Consultation) => Promise<void>;
   updateConsultation: (consultationId: string, patch: Partial<Consultation>) => Promise<void>;
   deleteConsultation: (consultationId: string) => Promise<void>;
+  addQuote: (quote: QuoteRecord) => Promise<void>;
+  updateQuote: (quoteId: string, patch: Partial<QuoteRecord>) => Promise<void>;
+  deleteQuote: (quoteId: string) => Promise<void>;
   deleteVisualiserSession: (sessionId: string) => Promise<void>;
   addProductionOrder: (order: ProductionOrder) => Promise<void>;
   updateProductionOrder: (orderId: string, patch: Partial<ProductionOrder>) => Promise<void>;
@@ -328,6 +338,7 @@ const createInitialState = () => ({
   enquiries: [] as Enquiry[],
   visualiserSessions: [] as VisualiserSession[],
   consultations: [] as Consultation[],
+  quotes: [] as QuoteRecord[],
   productionOrders: [] as ProductionOrder[],
   inventoryItems: [] as InventoryItem[],
   accountingRecords: [] as AccountingRecord[],
@@ -360,6 +371,10 @@ function mergeCompanySettings(base: CompanySettings, templates: NotificationTemp
     defaultLeadTimes: {
       ...clone(emptyCompanySettings.defaultLeadTimes),
       ...base.defaultLeadTimes,
+    },
+    websiteMedia: {
+      ...(clone(emptyCompanySettings.websiteMedia) || {}),
+      ...(base.websiteMedia || {}),
     },
     notificationTemplates: templates,
   };
@@ -412,6 +427,7 @@ function stopAdminListeners(set: (partial: Partial<TailoredStore> | ((state: Tai
     enquiries: [],
     visualiserSessions: [],
     consultations: [],
+    quotes: [],
     productionOrders: [],
     inventoryItems: [],
     accountingRecords: [],
@@ -668,6 +684,13 @@ function startAdminListeners(
     ),
   );
   addSubscription(
+    canAccessPipeline,
+    () => subscribeQuotes(
+      (quotes) => set({ quotes, adminDataReady: true }),
+      (message) => setError(set, message),
+    ),
+  );
+  addSubscription(
     canAccessJobs,
     () => subscribeProductionOrders(
       (productionOrders) => set({ productionOrders, adminDataReady: true }),
@@ -762,11 +785,16 @@ export const useTailoredStore = create<TailoredStore>()(
       setActiveAdmin: (adminId) => set({ activeAdminId: adminId }),
       addProduct: async (product) => {
         const user = currentUser(get);
+        const isPublished =
+          product.publishedToWebsite ??
+          product.website?.isPublished ??
+          false;
         const optimistic = {
           ...product,
+          publishedToWebsite: isPublished,
           website: {
-            isPublished: product.website?.isPublished ?? product.status === 'Live',
-            visibility: product.website?.visibility ?? (product.status === 'Live' ? 'public' : 'internal'),
+            isPublished: product.website?.isPublished ?? isPublished,
+            visibility: product.website?.visibility ?? (isPublished ? 'public' : 'internal'),
             featured: product.website?.featured ?? false,
             featuredOrder: product.website?.featuredOrder ?? 999,
             storeTitle: product.website?.storeTitle ?? product.name,
@@ -787,25 +815,31 @@ export const useTailoredStore = create<TailoredStore>()(
           adminProducts: state.adminProducts.map((product) => {
             if (product.id !== productId) return product;
             const nextStatus = patch.status ?? product.status;
+            const nextPublished =
+              patch.publishedToWebsite ??
+              patch.website?.isPublished ??
+              product.publishedToWebsite ??
+              product.website?.isPublished ??
+              false;
             const website = patch.website
               ? { ...product.website, ...patch.website }
               : {
                   ...product.website,
-                  isPublished: nextStatus === 'Live',
+                  isPublished: nextPublished,
                   visibility:
-                    nextStatus === 'Live'
+                    nextPublished
                       ? 'public'
                       : product.website?.visibility ?? 'internal',
                   publishedAt:
-                    nextStatus === 'Live'
+                    nextPublished
                       ? product.website?.publishedAt ?? new Date().toISOString()
                       : null,
                   publishedBy:
-                    nextStatus === 'Live'
+                    nextPublished
                       ? product.website?.publishedBy ?? user?.uid ?? null
                       : null,
                 };
-            return { ...product, ...patch, website };
+            return { ...product, ...patch, publishedToWebsite: nextPublished, website };
           }),
         }));
         await updateProductRemote(productId, patch, user);
@@ -963,6 +997,10 @@ export const useTailoredStore = create<TailoredStore>()(
               ...current.defaultLeadTimes,
               ...patch.defaultLeadTimes,
             },
+            websiteMedia: {
+              ...(current.websiteMedia || {}),
+              ...(patch.websiteMedia || {}),
+            },
           },
           get().notificationTemplates,
         );
@@ -977,13 +1015,7 @@ export const useTailoredStore = create<TailoredStore>()(
       },
       addTeamMember: async (member) => {
         try {
-          return await createTeamMemberRemote({
-            name: member.name,
-            email: member.email,
-            phone: member.phone,
-            role: member.role,
-            isPublicProfile: member.isPublicProfile,
-          });
+          return await createTeamMemberRemote(member);
         } catch (error) {
           console.error('Failed to create team member:', error);
           set({ lastError: 'Unable to create the team member account right now.' });
@@ -1224,7 +1256,8 @@ export const useTailoredStore = create<TailoredStore>()(
           productNames,
           status: payload.preferredDateTime ? 'Consultation Scheduled' : 'New',
           assignedTo: defaultOwner,
-          channel: 'Visualiser',
+          channel: 'Visualiser Submission',
+          sourceLabel: 'Visualiser Submission',
           createdAt: new Date().toISOString(),
           notes: [
             {
@@ -1238,6 +1271,7 @@ export const useTailoredStore = create<TailoredStore>()(
           ],
           visualiserSessionId: sessionId,
           visualiserScreenshot: roomPhotoUrl,
+          read: false,
         };
 
         const consultation =
@@ -1325,6 +1359,34 @@ export const useTailoredStore = create<TailoredStore>()(
           uploadedSpacePhoto,
           uploadedSpacePhotoPath,
           sizeLabel: state.configuratorDraft.sizePresetId || state.configuratorDraft.dimensionMode,
+          estimatedPrice: (() => {
+            if (!selectedProduct && !state.configuratorDraft.isCustomDesign) return 0;
+            const base = selectedProduct?.priceFrom ?? 60000;
+            const materialMultiplier =
+              state.configuratorDraft.materialId === 'rosewood'
+                ? 1.18
+                : state.configuratorDraft.materialId === 'mahogany'
+                  ? 1.12
+                  : state.configuratorDraft.materialId === 'teak'
+                    ? 1.08
+                    : 1;
+            const volumeFactor =
+              state.configuratorDraft.dimensionMode === 'custom'
+                ? Math.max(
+                    0.85,
+                    Math.min(
+                      1.9,
+                      (state.configuratorDraft.dimensions.width *
+                        state.configuratorDraft.dimensions.depth *
+                        state.configuratorDraft.dimensions.height) /
+                        (220 * 100 * 76),
+                    ),
+                  )
+                : 1;
+            return Math.round(
+              base * materialMultiplier * volumeFactor * state.configuratorDraft.quantity,
+            );
+          })(),
         };
 
         const enquiry: Enquiry = {
@@ -1337,7 +1399,8 @@ export const useTailoredStore = create<TailoredStore>()(
           productNames: [configurationData.productName],
           status: payload?.preferredDateTime ? 'Consultation Scheduled' : 'New',
           assignedTo: defaultOwner,
-          channel: 'Configurator',
+          channel: 'Configure Page',
+          sourceLabel: 'Configure Page',
           createdAt: new Date().toISOString(),
           preferredContactTime: state.configuratorDraft.preferredContactTime,
           notes: [
@@ -1348,7 +1411,9 @@ export const useTailoredStore = create<TailoredStore>()(
               createdAt: new Date().toISOString(),
             },
           ],
+          configuration: configurationData,
           configurationData,
+          read: false,
         };
 
         const consultation =
@@ -1386,7 +1451,9 @@ export const useTailoredStore = create<TailoredStore>()(
           productNames: payload.productNames ?? [],
           status: 'Consultation Scheduled',
           assignedTo: defaultOwner,
-          channel: payload.source === 'consultation' ? 'Consultation Form' : payload.source,
+          channel: payload.source === 'consultation' ? 'Book Consultation' : payload.source,
+          sourceLabel:
+            payload.source === 'consultation' ? 'Book Consultation' : payload.source,
           createdAt: new Date().toISOString(),
           preferredContactTime: payload.preferredDateTime,
           notes: [
@@ -1397,6 +1464,7 @@ export const useTailoredStore = create<TailoredStore>()(
               createdAt: new Date().toISOString(),
             },
           ],
+          read: false,
         };
         const consultation: Consultation = {
           id: consultationId,
@@ -1471,6 +1539,26 @@ export const useTailoredStore = create<TailoredStore>()(
         }));
         await deleteConsultationRemote(consultationId);
       },
+      addQuote: async (quote) => {
+        set((state) => ({
+          quotes: [quote, ...state.quotes],
+        }));
+        await createQuoteRemote(quote, currentUser(get));
+      },
+      updateQuote: async (quoteId, patch) => {
+        set((state) => ({
+          quotes: state.quotes.map((quote) =>
+            quote.id === quoteId ? { ...quote, ...patch } : quote,
+          ),
+        }));
+        await updateQuoteRemote(quoteId, patch, currentUser(get));
+      },
+      deleteQuote: async (quoteId) => {
+        set((state) => ({
+          quotes: state.quotes.filter((quote) => quote.id !== quoteId),
+        }));
+        await deleteQuoteRemote(quoteId);
+      },
       deleteVisualiserSession: async (sessionId) => {
         set((state) => ({
           visualiserSessions: state.visualiserSessions.filter((session) => session.id !== sessionId),
@@ -1481,29 +1569,54 @@ export const useTailoredStore = create<TailoredStore>()(
         set((state) => ({
           productionOrders: [order, ...state.productionOrders],
         }));
-        await createProductionOrderRemote(order, currentUser(get));
+        try {
+          await createProductionOrderRemote(order, currentUser(get));
+        } catch (error) {
+          set((state) => ({
+            productionOrders: state.productionOrders.filter((item) => item.id !== order.id),
+          }));
+          throw error;
+        }
       },
       updateProductionOrder: async (orderId, patch) => {
+        const previousOrders = get().productionOrders;
         set((state) => ({
           productionOrders: state.productionOrders.map((order) =>
             order.id === orderId ? { ...order, ...patch } : order,
           ),
         }));
-        await updateProductionOrderRemote(orderId, patch, currentUser(get));
+        try {
+          await updateProductionOrderRemote(orderId, patch, currentUser(get));
+        } catch (error) {
+          set({ productionOrders: previousOrders });
+          throw error;
+        }
       },
       moveProductionOrder: async (orderId, status) => {
+        const previousOrders = get().productionOrders;
         set((state) => ({
           productionOrders: state.productionOrders.map((order) =>
             order.id === orderId ? { ...order, status } : order,
           ),
         }));
-        await moveProductionOrderRemote(orderId, status, currentUser(get));
+        try {
+          await moveProductionOrderRemote(orderId, status, currentUser(get));
+        } catch (error) {
+          set({ productionOrders: previousOrders });
+          throw error;
+        }
       },
       deleteProductionOrder: async (orderId) => {
+        const previousOrders = get().productionOrders;
         set((state) => ({
           productionOrders: state.productionOrders.filter((order) => order.id !== orderId),
         }));
-        await deleteProductionOrderRemote(orderId);
+        try {
+          await deleteProductionOrderRemote(orderId);
+        } catch (error) {
+          set({ productionOrders: previousOrders });
+          throw error;
+        }
       },
       addInventoryItem: async (item) => {
         set((state) => ({
@@ -1529,18 +1642,36 @@ export const useTailoredStore = create<TailoredStore>()(
         await createAccountingRecordRemote(record, currentUser(get));
       },
       updateAccountingRecord: async (recordId, patch) => {
+        const existing = get().accountingRecords.find((record) => record.id === recordId);
+        const previousRecords = get().accountingRecords;
+        const nextPatch = {
+          ...(existing ? { type: existing.type } : {}),
+          ...patch,
+        };
         set((state) => ({
           accountingRecords: state.accountingRecords.map((record) =>
-            record.id === recordId ? { ...record, ...patch } : record,
+            record.id === recordId ? { ...record, ...nextPatch } : record,
           ),
         }));
-        await updateAccountingRecordRemote(recordId, patch, currentUser(get));
+        try {
+          await updateAccountingRecordRemote(recordId, nextPatch, currentUser(get));
+        } catch (error) {
+          set({ accountingRecords: previousRecords });
+          throw error;
+        }
       },
       deleteAccountingRecord: async (recordId) => {
+        const existing = get().accountingRecords.find((record) => record.id === recordId);
+        const previousRecords = get().accountingRecords;
         set((state) => ({
           accountingRecords: state.accountingRecords.filter((record) => record.id !== recordId),
         }));
-        await deleteAccountingRecordRemote(recordId);
+        try {
+          await deleteAccountingRecordRemote(recordId, existing?.type);
+        } catch (error) {
+          set({ accountingRecords: previousRecords });
+          throw error;
+        }
       },
     }),
     {

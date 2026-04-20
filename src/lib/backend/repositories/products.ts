@@ -3,17 +3,23 @@ import type { UserIdentity } from '../firestore';
 import { normalizeProductRecord } from '../models/products';
 import {
   createDocument,
-  patchDocument,
   removeDocument,
-  subscribeCollection,
+  subscribeMergedCollections,
+  upsertDocument,
 } from '../firestore';
 
 function normalizeProductForWrite(product: Product) {
+  const publishedToWebsite =
+    product.publishedToWebsite ??
+    product.website?.isPublished ??
+    false;
+
   return {
     ...product,
+    publishedToWebsite,
     website: {
-      isPublished: product.website?.isPublished ?? product.status === 'Live',
-      visibility: product.website?.visibility ?? (product.status === 'Live' ? 'public' : 'internal'),
+      isPublished: product.website?.isPublished ?? publishedToWebsite,
+      visibility: product.website?.visibility ?? (publishedToWebsite ? 'public' : 'internal'),
       featured: product.website?.featured ?? false,
       featuredOrder: product.website?.featuredOrder ?? 999,
       storeTitle: product.website?.storeTitle ?? product.name,
@@ -31,13 +37,24 @@ export function subscribeAdminProducts(
   onData: (products: Product[]) => void,
   onError?: (message: string) => void,
 ) {
-  return subscribeCollection<Product>(
-    'products',
-    [],
+  return subscribeMergedCollections<Product>(
+    [
+      {
+        key: 'products',
+        path: 'products',
+        priority: 2,
+        map: (product) => normalizeProductRecord(product.id, product),
+      },
+      {
+        key: 'publishedProducts',
+        path: 'publishedProducts',
+        priority: 1,
+        map: (product) => normalizeProductRecord(product.id, product),
+      },
+    ],
     (products) =>
       onData(
         products
-          .map((product) => normalizeProductRecord(product.id, product))
           .sort((left, right) => {
             const leftUpdated = left.updatedAt ? Date.parse(left.updatedAt) : 0;
             const rightUpdated = right.updatedAt ? Date.parse(right.updatedAt) : 0;
@@ -63,12 +80,22 @@ export async function updateProduct(
   patch: Partial<Product>,
   user?: UserIdentity | null,
 ) {
+  const nextPublishedToWebsite =
+    patch.publishedToWebsite ??
+    patch.website?.isPublished;
   const normalizedPatch = {
     ...patch,
+    publishedToWebsite: nextPublishedToWebsite,
     website: patch.website
       ? {
-          isPublished: patch.website.isPublished,
-          visibility: patch.website.visibility,
+          isPublished: patch.website.isPublished ?? nextPublishedToWebsite,
+          visibility:
+            patch.website.visibility ??
+            (typeof nextPublishedToWebsite === 'boolean'
+              ? nextPublishedToWebsite
+                ? 'public'
+                : 'internal'
+              : undefined),
           featured: patch.website.featured,
           featuredOrder: patch.website.featuredOrder,
           storeTitle: patch.website.storeTitle,
@@ -82,7 +109,7 @@ export async function updateProduct(
       : undefined,
   };
 
-  await patchDocument<Product>('products', productId, normalizedPatch, user);
+  await upsertDocument<Product>('products', productId, normalizedPatch, user);
 }
 
 export async function deleteProduct(productId: string) {

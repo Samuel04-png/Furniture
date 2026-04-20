@@ -247,6 +247,9 @@ export function InvoiceDetailPage() {
   const deleteAccountingRecord = useTailoredStore((state) => state.deleteAccountingRecord);
   const canEditFinance = canPerform('finance.edit', activeMember?.role);
   const canDeleteFinance = canPerform('system.manage', activeMember?.role);
+  const [pageError, setPageError] = useState('');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
   const invoice = records.find((record) => record.id === invoiceId && record.type === 'Invoice');
 
   if (!invoice) {
@@ -293,18 +296,47 @@ export function InvoiceDetailPage() {
               Download PDF
             </AdminButton>
             {canEditFinance ? <AdminLinkButton to={`/admin/finance/invoices/${invoice.id}/edit`} tone="ghost">Edit invoice</AdminLinkButton> : null}
-            {canEditFinance && invoice.status !== 'Paid' ? <AdminButton type="button" onClick={() => void updateAccountingRecord(invoice.id, { status: 'Paid' })}>Mark paid</AdminButton> : null}
+            {canEditFinance && statusLabel !== 'Paid' ? (
+              <AdminButton
+                type="button"
+                disabled={isUpdatingStatus || isDeletingInvoice}
+                onClick={async () => {
+                  setPageError('');
+                  setIsUpdatingStatus(true);
+                  try {
+                    await updateAccountingRecord(invoice.id, { status: 'Paid' });
+                  } catch (error) {
+                    console.error('Failed to mark invoice as paid:', error);
+                    setPageError('We could not update this invoice right now.');
+                  } finally {
+                    setIsUpdatingStatus(false);
+                  }
+                }}
+              >
+                {isUpdatingStatus ? 'Saving...' : 'Mark paid'}
+              </AdminButton>
+            ) : null}
             {canDeleteFinance ? (
               <AdminButton
                 type="button"
                 tone="danger"
-                onClick={() => {
+                disabled={isDeletingInvoice}
+                onClick={async () => {
                   if (!window.confirm(`Delete ${invoiceNumber}? This cannot be undone.`)) return;
-                  void deleteAccountingRecord(invoice.id);
-                  navigate('/admin/finance/invoices');
+                  setPageError('');
+                  setIsDeletingInvoice(true);
+                  try {
+                    await deleteAccountingRecord(invoice.id);
+                    navigate('/admin/finance/invoices');
+                  } catch (error) {
+                    console.error('Failed to delete invoice:', error);
+                    setPageError('We could not delete this invoice right now.');
+                  } finally {
+                    setIsDeletingInvoice(false);
+                  }
                 }}
               >
-                Delete invoice
+                {isDeletingInvoice ? 'Deleting...' : 'Delete invoice'}
               </AdminButton>
             ) : null}
           </div>
@@ -312,6 +344,12 @@ export function InvoiceDetailPage() {
       />
 
       <AdminSubnav items={financeNavItems(records)} />
+
+      {pageError ? (
+        <div className="rounded-[1.2rem] border border-[#d9a8a8] bg-[#fff6f5] px-4 py-3 text-sm leading-6 text-[#7d2f2f]">
+          {pageError}
+        </div>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_360px]">
         <InvoicePaper
@@ -375,6 +413,8 @@ export function InvoiceEditorPage() {
   const isEditing = Boolean(invoiceId);
   const initializationKeyRef = useRef<string | null>(null);
   const [form, setForm] = useState<InvoiceFormState>(createInvoiceForm(records));
+  const [submitError, setSubmitError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const inventoryById = useMemo(
     () =>
       new Map(
@@ -487,8 +527,9 @@ export function InvoiceEditorPage() {
             <AdminButton
               type="submit"
               form="invoice-editor-form"
+              disabled={isSaving}
             >
-              {isEditing ? 'Save changes' : 'Save invoice'}
+              {isSaving ? 'Saving...' : isEditing ? 'Save changes' : 'Save invoice'}
             </AdminButton>
           </div>
         }
@@ -500,11 +541,12 @@ export function InvoiceEditorPage() {
         <form
           id="invoice-editor-form"
           className="space-y-6"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
+            setSubmitError('');
             const lineItems = parseFormLineItems(form.lineItems);
             if (!lineItems.length) {
-              window.alert('Add at least one line item before saving the invoice.');
+              setSubmitError('Add at least one line item before saving the invoice.');
               return;
             }
 
@@ -530,20 +572,35 @@ export function InvoiceEditorPage() {
               feeAmount: Number(form.feeAmount || 0),
             };
 
-            if (existingInvoice) {
-              void updateAccountingRecord(existingInvoice.id, payload).then(() => navigate(`/admin/finance/invoices/${existingInvoice.id}`));
-              return;
-            }
+            setIsSaving(true);
+            try {
+              if (existingInvoice) {
+                await updateAccountingRecord(existingInvoice.id, payload);
+                navigate(`/admin/finance/invoices/${existingInvoice.id}`);
+                return;
+              }
 
-            void addAccountingRecord(payload).then(() => navigate(`/admin/finance/invoices/${recordId}`));
+              await addAccountingRecord(payload);
+              navigate(`/admin/finance/invoices/${recordId}`);
+            } catch (error) {
+              console.error('Failed to save invoice:', error);
+              setSubmitError('We could not save this invoice right now. Please try again.');
+            } finally {
+              setIsSaving(false);
+            }
           }}
         >
+          {submitError ? (
+            <div className="rounded-[1.1rem] border border-[#d9a8a8] bg-[#fff6f5] px-4 py-3 text-sm leading-6 text-[#7d2f2f]">
+              {submitError}
+            </div>
+          ) : null}
           <AdminSurface>
             <AdminSurfaceHeader title="Client & invoice info" description="Core contact details plus the auto-generated invoice identity." />
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Client name"><TextInput value={form.clientName} onChange={(event) => setForm((current) => ({ ...current, clientName: event.target.value }))} required /></Field>
-              <Field label="Client phone number"><TextInput value={form.clientPhone} onChange={(event) => setForm((current) => ({ ...current, clientPhone: event.target.value }))} required /></Field>
-              <Field label="Client email address"><TextInput type="email" value={form.clientEmail} onChange={(event) => setForm((current) => ({ ...current, clientEmail: event.target.value }))} required /></Field>
+              <Field label="Client phone number"><TextInput value={form.clientPhone} onChange={(event) => setForm((current) => ({ ...current, clientPhone: event.target.value }))} /></Field>
+              <Field label="Client email address"><TextInput type="email" value={form.clientEmail} onChange={(event) => setForm((current) => ({ ...current, clientEmail: event.target.value }))} /></Field>
               <Field label="Due date"><TextInput type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} required /></Field>
               <Field label="Invoice number"><TextInput value={form.invoiceNumber} readOnly /></Field>
               <Field label="Invoice date"><TextInput type="date" value={form.invoiceDate} readOnly /></Field>

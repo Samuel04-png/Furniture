@@ -2,13 +2,15 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import Button from '../components/Button';
 import { PageHero, Reveal, SectionIntro } from '../components/primitives';
+import { getWebsiteMediaItem } from '../lib/websiteMedia';
 import { useTailoredStore } from '../store/useTailoredStore';
-import { asset } from '../config/site';
 import Image from '../components/Image';
 
 
 export default function Materials() {
   const materials = useTailoredStore((state) => state.materials);
+  const companySettings = useTailoredStore((state) => state.companySettings);
+  const heroMedia = getWebsiteMediaItem(companySettings, 'materialsHero');
 
   return (
     <div className="bg-tm-off-white">
@@ -16,7 +18,7 @@ export default function Materials() {
         eyebrow="Material library"
         title="Zambian hardwood, treated as the hero"
         body="The platform treats material as more than a dropdown. Each timber has its own visual identity, tonal range, and ideal applications."
-        image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (4).jpg')}
+        image={heroMedia.image}
         heightClassName="min-h-[58svh]"
 
       />
@@ -34,7 +36,7 @@ export default function Materials() {
               <Reveal key={material.id} delay={index * 0.08}>
                 <div className={`grid gap-8 overflow-hidden border border-black/10 bg-tm-off-white lg:grid-cols-2 ${index % 2 === 1 ? 'lg:[&>*:first-child]:order-last' : ''}`}>
                   <div className="relative min-h-[26rem] overflow-hidden">
-                    <Image src={material.grainImage} alt={material.name} fill />
+                    {material.grainImage ? <Image src={material.grainImage} alt={material.name} fill /> : <div className="flex h-full items-center justify-center bg-[#ede4d8] px-8 text-center font-dm text-sm text-tm-warm-gray">Material imagery is being added for {material.name}.</div>}
                     <div className="absolute inset-0 bg-[rgba(12,12,12,0.18)]" />
                   </div>
 
@@ -56,6 +58,19 @@ export default function Materials() {
                         ))}
                       </div>
                     </div>
+
+                    {material.availableFinishes.length ? (
+                      <div className="mt-8">
+                        <p className="font-dm text-[11px] uppercase tracking-[0.2em] text-tm-warm-gray">Finish options</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {material.availableFinishes.map((finish) => (
+                            <span key={finish} className="border border-black/12 bg-white/70 px-4 py-2 font-dm text-[11px] uppercase tracking-[0.18em] text-tm-obsidian">
+                              {finish}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
 
                     <div className="mt-8 flex flex-wrap gap-3">
                       <Button to={`/materials/${material.id}`} variant="minimal" icon={<ArrowRight className="h-4 w-4" />} iconPosition="right" className="bg-tm-obsidian hover:bg-tm-obsidian hover:text-tm-cream">

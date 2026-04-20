@@ -19,6 +19,7 @@ export type EnquiryStatus =
   | 'Lost';
 export type VisualiserSessionStatus = 'New' | 'Contacted' | 'Consultation Booked' | 'Closed';
 export type ConsultationStatus = 'Scheduled' | 'Completed' | 'Rescheduled' | 'Cancelled';
+export type QuoteStatus = 'Draft' | 'Requested' | 'Sent' | 'Negotiation' | 'Won' | 'Lost';
 export type ProductionStage =
   | 'Confirmed Order'
   | 'Materials Sourced'
@@ -86,6 +87,12 @@ export interface DimensionSet {
 export interface Material extends AuditFields {
   id: string;
   name: string;
+  type?: string;
+  unit?: string;
+  quantity?: number;
+  reorderPoint?: number;
+  supplier?: string;
+  costPerUnit?: number;
   origin: string;
   description: string;
   character: string;
@@ -96,6 +103,7 @@ export interface Material extends AuditFields {
   accentTone: string;
   availableFinishes: string[];
   sortOrder?: number;
+  publishedToWebsite?: boolean;
   visibleOnSite?: boolean;
 }
 
@@ -156,6 +164,7 @@ export interface Product extends AuditFields {
   overlayKind: OverlayKind;
   silhouetteTone?: string;
   processGallery: ProcessImage[];
+  publishedToWebsite?: boolean;
   website?: ProductWebsiteSettings;
   internalNotes?: string;
 }
@@ -216,6 +225,7 @@ export interface PortfolioProject extends AuditFields {
   materials: string[];
   metrics: string[];
   testimonial: string;
+  publishedToWebsite?: boolean;
   visibleOnSite?: boolean;
   sortOrder?: number;
 }
@@ -232,6 +242,8 @@ export interface TeamMember extends AuditFields {
   avatarUrl?: string;
   avatarPath?: string | null;
   bio?: string;
+  active?: boolean;
+  publicProfile?: boolean;
   isPublicProfile?: boolean;
   lastLoginAt?: string;
 }
@@ -262,6 +274,7 @@ export interface ConfigurationData {
   uploadedSpacePhoto?: string | null;
   uploadedSpacePhotoPath?: string | null;
   sizeLabel?: string;
+  estimatedPrice?: number;
 }
 
 export interface PlacedVisualiserItem {
@@ -311,12 +324,15 @@ export interface Enquiry extends AuditFields {
   status: EnquiryStatus;
   assignedTo?: string;
   channel: string;
+  sourceLabel?: string;
   createdAt: string;
   notes: EnquiryNote[];
+  configuration?: ConfigurationData;
   configurationData?: ConfigurationData;
   visualiserSessionId?: string;
   visualiserScreenshot?: string;
   preferredContactTime?: string;
+  read?: boolean;
 }
 
 export interface Consultation extends AuditFields {
@@ -333,8 +349,26 @@ export interface Consultation extends AuditFields {
   visualiserSessionId?: string;
 }
 
+export interface QuoteRecord extends AuditFields {
+  id: string;
+  leadId?: string;
+  consultationId?: string;
+  clientName: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  quoteNumber?: string;
+  status: QuoteStatus;
+  productIds: string[];
+  productNames: string[];
+  summary: string;
+  amount?: number;
+  notes?: string;
+  validUntil?: string;
+}
+
 export interface ProductionOrder extends AuditFields {
   id: string;
+  title?: string;
   consultationId?: string;
   clientName: string;
   productId: string;
@@ -342,10 +376,13 @@ export interface ProductionOrder extends AuditFields {
   configuration: string;
   material: string;
   deadline: string;
+  deliveryDate?: string;
   craftsman: string;
   status: ProductionStage;
   depositPaid: number;
   balanceDue: number;
+  dependencies?: string[];
+  qcNotes?: string;
   progressPhotos: string[];
 }
 
@@ -358,6 +395,7 @@ export interface InventoryItem extends AuditFields {
   reserved: number;
   reorderPoint: number;
   supplier: string;
+  costPerUnit?: number;
   eta: string;
 }
 
@@ -430,6 +468,30 @@ export interface NotificationRecord extends AuditFields {
   metadata?: Record<string, string | number | boolean | null>;
 }
 
+export type WebsiteMediaSlot =
+  | 'homeHeroPoster'
+  | 'homeSignatureFeature'
+  | 'aboutHero'
+  | 'collectionsHero'
+  | 'materialsHero'
+  | 'contactHero'
+  | 'bookConsultationHero'
+  | 'theProcessHero'
+  | 'configuratorHero'
+  | 'configuratorConfirmationHero'
+  | 'notFoundHero';
+
+export interface WebsiteMediaItem extends AuditFields {
+  slot: WebsiteMediaSlot;
+  label: string;
+  pagePath: string;
+  image: string;
+  imagePath?: string | null;
+  alt: string;
+  description: string;
+  story: string;
+}
+
 export interface CompanySettings extends AuditFields {
   companyName: string;
   address: string;
@@ -447,6 +509,7 @@ export interface CompanySettings extends AuditFields {
   }>;
   defaultLeadTimes: Record<ProductCategory, string>;
   notificationTemplates: NotificationTemplate[];
+  websiteMedia?: Partial<Record<WebsiteMediaSlot, WebsiteMediaItem>>;
 }
 
 export interface ConfiguratorDraft {

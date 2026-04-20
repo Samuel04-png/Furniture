@@ -2,14 +2,15 @@ import { useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { DimensionDiagram, PageHero, SectionIntro, StatusBadge } from '../components/primitives';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, getProductDisplayCategory } from '../lib/utils';
 import { useTailoredStore } from '../store/useTailoredStore';
 
 export default function ProductDetail() {
   const { slug } = useParams();
   const products = useTailoredStore((state) => state.products);
   const materials = useTailoredStore((state) => state.materials);
-  const product = products.find((item) => item.slug === slug);
+  const publishedProducts = useMemo(() => products, [products]);
+  const product = publishedProducts.find((item) => item.slug === slug);
   const [activeImage, setActiveImage] = useState(0);
   const [selectedMaterial, setSelectedMaterial] = useState(product?.materials[0] ?? 'mukwa');
   const [selectedFinish, setSelectedFinish] = useState(product?.finishes[0] ?? 'Matt');
@@ -18,25 +19,36 @@ export default function ProductDetail() {
 
   const relatedProducts = useMemo(
     () =>
-      products
-        .filter((item) => item.slug !== slug && item.room === product?.room && item.status === 'Live')
+      publishedProducts
+        .filter((item) => item.slug !== slug && item.room === product?.room)
         .slice(0, 3),
-    [product?.room, products, slug],
+    [product?.room, publishedProducts, slug],
   );
 
   if (!product) {
     return <Navigate to="/collections" replace />;
   }
 
-  const selectedMaterialData = materials.find((material) => material.id === selectedMaterial) ?? materials[0];
+  const availableMaterials = product.materials
+    .map((materialId) => materials.find((material) => material.id === materialId))
+    .filter((material): material is (typeof materials)[number] => Boolean(material));
+  const selectedMaterialData =
+    availableMaterials.find((material) => material.id === selectedMaterial) ?? availableMaterials[0];
+  const selectedMaterialLabel =
+    selectedMaterialData?.name ??
+    selectedMaterial
+      .split(/[-_]/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
   const selectedSize = product.sizePresets.find((size) => size.id === selectedPreset) ?? product.sizePresets[0];
-  const visualiserHref = `/visualise?product=${product.id}&material=${selectedMaterial}`;
   const configuratorHref = `/configure?product=${product.id}&material=${selectedMaterial}&finish=${encodeURIComponent(selectedFinish)}`;
+  const displayCategory = getProductDisplayCategory(product);
 
   return (
     <div className="bg-tm-off-white">
       <PageHero
-        eyebrow={product.category}
+        eyebrow={displayCategory}
         title={product.name}
         body={product.summary}
         image={product.gallery[activeImage] || product.heroImage}
@@ -73,18 +85,27 @@ export default function ProductDetail() {
             <p className="mt-8 max-w-3xl font-dm text-[1rem] leading-8 text-tm-warm-gray">{product.description}</p>
 
             <div className="mt-10 flex flex-wrap items-center gap-3">
-              <Link
-                to={`/materials/${selectedMaterialData.id}`}
-                className="inline-flex items-center gap-3 rounded-full border border-black/8 bg-white px-4 py-3"
-              >
-                <span className="h-10 w-10 overflow-hidden rounded-full border border-black/8">
-                  <img src={selectedMaterialData.grainImage} alt={selectedMaterialData.name} className="h-full w-full object-cover" />
-                </span>
-                <div className="text-left">
-                  <p className="font-dm text-[0.68rem] uppercase tracking-[0.24em] text-tm-warm-gray">Material</p>
-                  <p className="font-dm text-sm font-medium text-tm-obsidian">{selectedMaterialData.name}</p>
+              {selectedMaterialData ? (
+                <Link
+                  to={`/materials/${selectedMaterialData.id}`}
+                  className="inline-flex items-center gap-3 rounded-full border border-black/8 bg-white px-4 py-3"
+                >
+                  <span className="h-10 w-10 overflow-hidden rounded-full border border-black/8">
+                    <img src={selectedMaterialData.grainImage} alt={selectedMaterialData.name} className="h-full w-full object-cover" />
+                  </span>
+                  <div className="text-left">
+                    <p className="font-dm text-[0.68rem] uppercase tracking-[0.24em] text-tm-warm-gray">Material</p>
+                    <p className="font-dm text-sm font-medium text-tm-obsidian">{selectedMaterialData.name}</p>
+                  </div>
+                </Link>
+              ) : (
+                <div className="inline-flex items-center gap-3 rounded-full border border-black/8 bg-white px-4 py-3">
+                  <div className="text-left">
+                    <p className="font-dm text-[0.68rem] uppercase tracking-[0.24em] text-tm-warm-gray">Material</p>
+                    <p className="font-dm text-sm font-medium text-tm-obsidian">{selectedMaterialLabel || 'To be confirmed'}</p>
+                  </div>
                 </div>
-              </Link>
+              )}
               <StatusBadge>{product.leadTime} lead time</StatusBadge>
             </div>
 
@@ -130,21 +151,24 @@ export default function ProductDetail() {
 
               <div className="mt-8">
                 <p className="mb-3 font-dm text-[0.72rem] uppercase tracking-[0.24em] text-tm-warm-gray">Material</p>
-                <div className="flex flex-wrap gap-3">
-                  {product.materials.map((materialId) => {
-                    const material = materials.find((item) => item.id === materialId)!;
-                    return (
+                {availableMaterials.length ? (
+                  <div className="flex flex-wrap gap-3">
+                    {availableMaterials.map((material) => (
                       <button
-                        key={materialId}
+                        key={material.id}
                         type="button"
-                        onClick={() => setSelectedMaterial(materialId)}
-                        className={`rounded-full border p-1 transition ${selectedMaterial === materialId ? 'border-tm-gold' : 'border-black/10'}`}
+                        onClick={() => setSelectedMaterial(material.id)}
+                        className={`rounded-full border p-1 transition ${selectedMaterial === material.id ? 'border-tm-gold' : 'border-black/10'}`}
                       >
                         <img src={material.grainImage} alt={material.name} className="h-11 w-11 rounded-full object-cover" />
                       </button>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-[1rem] border border-black/8 bg-[#f6f1e7] px-4 py-3 font-dm text-sm leading-7 text-tm-warm-gray">
+                    Material profiles are being published. You can still request a quote and we will confirm the timber and finish with you.
+                  </div>
+                )}
               </div>
 
               <div className="mt-8">
@@ -235,16 +259,16 @@ export default function ProductDetail() {
 
               <div className="mt-8 space-y-3">
                 <Link
-                  to={visualiserHref}
+                  to={configuratorHref}
                   className="flex w-full items-center justify-center gap-2 rounded-full bg-tm-gold px-6 py-4 font-dm text-[0.78rem] uppercase tracking-[0.24em] text-tm-charcoal transition hover:bg-tm-gold-light"
                 >
-                  Visualise in My Room
+                  Request a Quote
                 </Link>
                 <Link
-                  to={configuratorHref}
+                  to="/book-consultation"
                   className="flex w-full items-center justify-center gap-2 rounded-full border border-tm-gold px-6 py-4 font-dm text-[0.78rem] uppercase tracking-[0.24em] text-tm-gold transition hover:bg-tm-gold hover:text-tm-charcoal"
                 >
-                  Request a Quote
+                  Book Consultation
                 </Link>
               </div>
 

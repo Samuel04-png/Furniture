@@ -51,6 +51,8 @@ export function normalizeTeamMemberRecord(
     avatarUrl: raw.avatarUrl,
     avatarPath: raw.avatarPath ?? null,
     bio: raw.bio || '',
+    active: raw.active ?? resolveStatus(raw) !== 'Disabled',
+    publicProfile: raw.publicProfile ?? raw.isPublicProfile ?? false,
     isPublicProfile: raw.isPublicProfile ?? false,
     lastLoginAt: raw.lastLoginAt || raw.lastLogin,
     createdAt: raw.createdAt,

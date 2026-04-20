@@ -112,21 +112,29 @@ service cloud.firestore {
       return roleIn(['Owner', 'Admin']);
     }
 
+    function isAuditTimestamp(value) {
+      return value is timestamp;
+    }
+
     function isPublicEnquiryCreate() {
       return !signedIn()
         && request.resource.data.keys().hasOnly([
           'id',
           'type',
+          'name',
           'clientName',
           'phone',
           'email',
+          'source',
           'productIds',
           'productNames',
           'status',
           'assignedTo',
           'channel',
+          'read',
           'createdAt',
           'notes',
+          'configuration',
           'configurationData',
           'visualiserSessionId',
           'visualiserScreenshot',
@@ -138,12 +146,24 @@ service cloud.firestore {
         && request.resource.data.clientName is string
         && request.resource.data.phone is string
         && request.resource.data.email is string
+        && request.resource.data.source is string
         && request.resource.data.productIds is list
         && request.resource.data.productNames is list
-        && request.resource.data.createdAt is string
         && request.resource.data.notes is list
+        && isAuditTimestamp(request.resource.data.createdAt)
+        && isAuditTimestamp(request.resource.data.updatedAt)
+        && request.resource.data.createdBy == null
+        && request.resource.data.updatedBy == null
+        && (request.resource.data.assignedTo == null || request.resource.data.assignedTo is string)
+        && (request.resource.data.channel == null || request.resource.data.channel is string)
+        && (request.resource.data.preferredContactTime == null || request.resource.data.preferredContactTime is string)
+        && (request.resource.data.read == null || request.resource.data.read is bool)
+        && (request.resource.data.configuration == null || request.resource.data.configuration is map)
+        && (request.resource.data.configurationData == null || request.resource.data.configurationData is map)
+        && (request.resource.data.visualiserSessionId == null || request.resource.data.visualiserSessionId is string)
+        && (request.resource.data.visualiserScreenshot == null || request.resource.data.visualiserScreenshot is string)
         && request.resource.data.type in ['visualiser', 'configurator', 'consultation', 'direct']
-        && request.resource.data.status in ['New', 'Consultation Scheduled'];
+        && request.resource.data.status in ['new', 'consultation_scheduled'];
     }
 
     function isPublicConsultationCreate() {
@@ -162,13 +182,22 @@ service cloud.firestore {
           'visualiserSessionId',
           'createdBy',
           'updatedBy',
-          'updatedAt'
+          'updatedAt',
+          'createdAt'
         ])
         && request.resource.data.clientName is string
         && request.resource.data.phone is string
         && request.resource.data.email is string
         && request.resource.data.scheduledAt is string
         && request.resource.data.notes is string
+        && request.resource.data.enquiryId is string
+        && request.resource.data.assignedDesigner is string
+        && request.resource.data.source is string
+        && (request.resource.data.visualiserSessionId == null || request.resource.data.visualiserSessionId is string)
+        && isAuditTimestamp(request.resource.data.createdAt)
+        && isAuditTimestamp(request.resource.data.updatedAt)
+        && request.resource.data.createdBy == null
+        && request.resource.data.updatedBy == null
         && request.resource.data.status in ['Scheduled', 'Completed', 'Rescheduled', 'Cancelled'];
     }
 
@@ -189,13 +218,66 @@ service cloud.firestore {
           'enquiryId',
           'createdBy',
           'updatedBy',
-          'updatedAt'
+          'updatedAt',
+          'createdAt'
         ])
         && request.resource.data.roomPhotoUrl is string
         && request.resource.data.roomName is string
         && request.resource.data.placedItems is list
         && request.resource.data.submittedAt is string
+        && request.resource.data.clientName is string
+        && request.resource.data.phone is string
+        && request.resource.data.email is string
+        && (request.resource.data.roomPhotoPath == null || request.resource.data.roomPhotoPath is string)
+        && (request.resource.data.assignedTo == null || request.resource.data.assignedTo is string)
+        && (request.resource.data.enquiryId == null || request.resource.data.enquiryId is string)
+        && isAuditTimestamp(request.resource.data.createdAt)
+        && isAuditTimestamp(request.resource.data.updatedAt)
+        && request.resource.data.createdBy == null
+        && request.resource.data.updatedBy == null
         && request.resource.data.status in ['New', 'Contacted', 'Consultation Booked', 'Closed'];
+    }
+
+    function isPublicQuoteCreate() {
+      return !signedIn()
+        && request.resource.data.keys().hasOnly([
+          'id',
+          'leadId',
+          'consultationId',
+          'clientName',
+          'clientEmail',
+          'clientPhone',
+          'quoteNumber',
+          'status',
+          'productIds',
+          'productNames',
+          'summary',
+          'amount',
+          'notes',
+          'validUntil',
+          'createdBy',
+          'updatedBy',
+          'updatedAt',
+          'createdAt'
+        ])
+        && request.resource.data.id is string
+        && request.resource.data.leadId is string
+        && (request.resource.data.consultationId == null || request.resource.data.consultationId is string)
+        && request.resource.data.clientName is string
+        && request.resource.data.clientEmail is string
+        && request.resource.data.clientPhone is string
+        && request.resource.data.quoteNumber is string
+        && request.resource.data.productIds is list
+        && request.resource.data.productNames is list
+        && request.resource.data.summary is string
+        && request.resource.data.amount is number
+        && request.resource.data.notes is string
+        && request.resource.data.validUntil is string
+        && isAuditTimestamp(request.resource.data.createdAt)
+        && isAuditTimestamp(request.resource.data.updatedAt)
+        && request.resource.data.createdBy == null
+        && request.resource.data.updatedBy == null
+        && request.resource.data.status in ['requested', 'draft'];
     }
 
     match /publishedProducts/{productId} {
@@ -217,6 +299,12 @@ service cloud.firestore {
     match /materials/{materialId} {
       allow read: if resource.data.visibleOnSite == true || canReadInventory();
       allow create, update, delete: if canWriteInventory();
+    }
+
+    match /inventory/{inventoryId} {
+      allow read: if canReadInventory() || resource.data.category in ['Hardwood', 'hardwood'];
+      allow create, update: if canWriteInventory();
+      allow delete: if canManageSystem();
     }
 
     match /sampleRooms/{roomId} {
@@ -292,7 +380,20 @@ service cloud.firestore {
       allow delete: if canManageSystem();
     }
 
+    match /quotes/{quoteId} {
+      allow read: if canReadPipeline();
+      allow create: if canWritePipeline() || isPublicQuoteCreate();
+      allow update: if canWritePipeline();
+      allow delete: if canManageSystem();
+    }
+
     match /productionJobs/{jobId} {
+      allow read: if canReadJobs();
+      allow create, update: if canWriteJobs();
+      allow delete: if canManageSystem();
+    }
+
+    match /productions/{jobId} {
       allow read: if canReadJobs();
       allow create, update: if canWriteJobs();
       allow delete: if canManageSystem();

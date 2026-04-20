@@ -168,12 +168,19 @@ async function resolveTeamAccess(authData) {
     const tokenApproved = authData.token?.approved === true;
     const tokenDisabled = authData.token?.disabled === true;
     const userSnapshot = await db.collection('users').doc(authData.uid).get();
-    const userData = userSnapshot.exists ? userSnapshot.data() : undefined;
-    const status = userData?.status || null;
-    const disabled = tokenDisabled || status === 'Disabled';
+    const userData = userSnapshot.exists
+        ? userSnapshot.data()
+        : undefined;
+    const status = userData?.status ||
+        (userData?.active === false ? 'Disabled' : null);
+    const disabled = tokenDisabled ||
+        userData?.active === false ||
+        status === 'Disabled';
     return {
         uid: authData.uid,
-        role: userData?.role ? normalizeRole(userData.role) : tokenRole,
+        role: userData?.role
+            ? normalizeRole(userData.role)
+            : tokenRole,
         status,
         approved: !disabled && (tokenApproved || userSnapshot.exists),
     };
@@ -300,9 +307,11 @@ function sanitizePublishedProduct(productId, raw) {
         materials: Array.isArray(raw.materials) ? raw.materials : [],
         finishes: Array.isArray(raw.finishes) ? raw.finishes : [],
         upholsterySwatches: Array.isArray(raw.upholsterySwatches) ? raw.upholsterySwatches : [],
-        heroImage: raw.heroImage || '',
-        cardImage: raw.cardImage || raw.heroImage || '',
-        gallery: Array.isArray(raw.gallery) ? raw.gallery : [],
+        heroImage: raw.heroImage || raw.imageUrl || '',
+        cardImage: raw.cardImage || raw.imageUrl || raw.heroImage || '',
+        gallery: Array.isArray(raw.gallery) && raw.gallery.length
+            ? raw.gallery
+            : [raw.heroImage || raw.imageUrl || '', raw.cardImage || raw.imageUrl || raw.heroImage || ''].filter(Boolean),
         summary: raw.summary || '',
         story: raw.story || raw.summary || '',
         description: raw.description || raw.summary || '',
@@ -331,6 +340,17 @@ function sanitizePublishedProduct(productId, raw) {
         updatedAt: fieldValue().serverTimestamp(),
     };
 }
+function getProductPublishedState(raw) {
+    if (!raw) {
+        return false;
+    }
+    const hasExplicitPublishFlag = typeof raw.publishedToWebsite === 'boolean' ||
+        typeof raw.website?.isPublished === 'boolean';
+    return (raw.publishedToWebsite === true ||
+        (raw.website?.isPublished === true &&
+            String(raw.website?.visibility || 'public') === 'public') ||
+        (!hasExplicitPublishFlag && raw.status === 'Live'));
+}
 async function deletePrefix(prefix) {
     const [files] = await bucket.getFiles({ prefix });
     if (!files.length)
@@ -342,28 +362,26 @@ async function syncPublishedProductRecord(productId, after) {
         await db.collection('publishedProducts').doc(productId).delete().catch(() => undefined);
         return false;
     }
-    const shouldPublish = after.status === 'Live' &&
-        Boolean(after.website?.isPublished) &&
-        String(after.website?.visibility || 'internal') === 'public';
-    if (!shouldPublish) {
-        await db.collection('publishedProducts').doc(productId).delete().catch(() => undefined);
-        return false;
+    const shouldPublish = getProductPublishedState(after);
+    const publishedRef = db.collection('publishedProducts').doc(productId);
+    if (shouldPublish) {
+        await publishedRef.set(sanitizePublishedProduct(productId, after), { merge: true });
+        return true;
     }
-    await db
-        .collection('publishedProducts')
-        .doc(productId)
-        .set(sanitizePublishedProduct(productId, after), { merge: true });
-    return true;
+    await publishedRef.delete().catch(() => undefined);
+    return shouldPublish;
 }
 exports.createTeamMember = (0, https_1.onCall)({ region }, async (request) => {
+    // Deploy this callable to the tailored-manor Firebase project in africa-south1.
     await requireAdmin(request.auth || undefined);
-    const name = String(request.data?.name || '').trim();
+    const name = String(request.data?.displayName || request.data?.name || '').trim();
     const email = String(request.data?.email || '').trim().toLowerCase();
-    const phone = String(request.data?.phone || '').trim();
+    const password = String(request.data?.password || '').trim();
     const role = normalizeRole(String(request.data?.role || 'Read Only'));
-    const isPublicProfile = Boolean(request.data?.isPublicProfile);
-    if (!name || !email) {
-        throw new https_1.HttpsError('invalid-argument', 'Name and email are required.');
+    const avatarUrl = String(request.data?.avatarUrl || '').trim();
+    const publicProfile = Boolean(request.data?.publicProfile ?? request.data?.isPublicProfile);
+    if (!name || !email || !password) {
+        throw new https_1.HttpsError('invalid-argument', 'Display name, email, and password are required.');
     }
     try {
         await auth.getUserByEmail(email);
@@ -373,42 +391,49 @@ exports.createTeamMember = (0, https_1.onCall)({ region }, async (request) => {
         if (error instanceof https_1.HttpsError)
             throw error;
     }
-    const temporaryPassword = randomPassword();
     const userRecord = await auth.createUser({
         email,
-        password: temporaryPassword,
+        password,
         displayName: name,
     });
     await auth.setCustomUserClaims(userRecord.uid, { role, approved: true, disabled: false });
-    const userDoc = {
+    const teamMemberDoc = {
         uid: userRecord.uid,
         name,
         email,
-        phone,
         role,
         initials: createInitials(name),
-        status: 'Invited',
-        isPublicProfile,
+        phone: '',
+        avatarUrl: avatarUrl || null,
+        avatarPath: null,
+        bio: '',
+        publicProfile,
+        isPublicProfile: publicProfile,
+        active: true,
+        status: 'Active',
         createdAt: fieldValue().serverTimestamp(),
         updatedAt: fieldValue().serverTimestamp(),
         createdBy: request.auth?.uid || null,
         updatedBy: request.auth?.uid || null,
     };
     const batch = db.batch();
-    batch.set(db.collection('users').doc(userRecord.uid), userDoc, { merge: true });
-    if (isPublicProfile) {
+    batch.set(db.collection('users').doc(userRecord.uid), teamMemberDoc, { merge: true });
+    if (publicProfile) {
         batch.set(db.collection('teamProfiles').doc(userRecord.uid), {
             id: userRecord.uid,
             uid: userRecord.uid,
             name,
             email,
-            phone,
+            phone: '',
             role,
             initials: createInitials(name),
-            avatarUrl: null,
+            avatarUrl: avatarUrl || null,
             avatarPath: null,
             bio: '',
+            publicProfile: true,
             isPublicProfile: true,
+            active: true,
+            createdAt: fieldValue().serverTimestamp(),
             updatedAt: fieldValue().serverTimestamp(),
         }, { merge: true });
     }
@@ -420,19 +445,40 @@ exports.createTeamMember = (0, https_1.onCall)({ region }, async (request) => {
     });
     return {
         uid: userRecord.uid,
-        temporaryPassword,
     };
 });
 exports.backfillPublishedProducts = (0, https_1.onCall)({ region }, async (request) => {
+    // Deploy this callable to the tailored-manor Firebase project in africa-south1.
     await requireAdmin(request.auth || undefined);
     const snapshot = await db.collection('products').get();
+    const batch = db.batch();
     let publishedCount = 0;
     for (const docSnap of snapshot.docs) {
-        const published = await syncPublishedProductRecord(docSnap.id, docSnap.data());
+        const data = docSnap.data();
+        const published = getProductPublishedState(data);
+        const website = data.website || {};
+        batch.set(docSnap.ref, {
+            publishedToWebsite: published,
+            website: {
+                ...website,
+                isPublished: published,
+                visibility: published ? 'public' : 'internal',
+                publishedAt: published ? website.publishedAt || fieldValue().serverTimestamp() : null,
+                publishedBy: published ? website.publishedBy || request.auth?.uid || null : null,
+            },
+            updatedAt: fieldValue().serverTimestamp(),
+            updatedBy: request.auth?.uid || null,
+        }, { merge: true });
+        const publishedRef = db.collection('publishedProducts').doc(docSnap.id);
         if (published) {
+            batch.set(publishedRef, sanitizePublishedProduct(docSnap.id, { ...data, publishedToWebsite: true, website: { ...website, isPublished: true, visibility: 'public' } }), { merge: true });
             publishedCount += 1;
         }
+        else {
+            batch.delete(publishedRef);
+        }
     }
+    await batch.commit();
     await writeAuditLog('products', 'backfill', 'published-products-backfill', {
         totalProducts: snapshot.size,
         publishedCount,
@@ -444,6 +490,7 @@ exports.backfillPublishedProducts = (0, https_1.onCall)({ region }, async (reque
     };
 });
 exports.disableTeamMember = (0, https_1.onCall)({ region }, async (request) => {
+    // Deploy this callable to the tailored-manor Firebase project in africa-south1.
     await requireAdmin(request.auth || undefined);
     const uid = String(request.data?.uid || '').trim();
     if (!uid) {
@@ -451,11 +498,17 @@ exports.disableTeamMember = (0, https_1.onCall)({ region }, async (request) => {
     }
     await auth.updateUser(uid, { disabled: true });
     await auth.setCustomUserClaims(uid, { role: 'Read Only', approved: false, disabled: true });
-    await db.collection('users').doc(uid).set({
+    const disabledPatch = {
+        active: false,
+        publicProfile: false,
+        isPublicProfile: false,
         status: 'Disabled',
         updatedAt: fieldValue().serverTimestamp(),
         updatedBy: request.auth?.uid || null,
-    }, { merge: true });
+    };
+    await Promise.all([
+        db.collection('users').doc(uid).set(disabledPatch, { merge: true }),
+    ]);
     await db.collection('teamProfiles').doc(uid).delete().catch(() => undefined);
     await writeAuditLog('system', uid, 'team-member-disabled', {
         requestedBy: request.auth?.uid || null,
@@ -516,13 +569,13 @@ exports.syncTeamClaims = (0, firestore_1.onDocumentWritten)({ region, document: 
         return;
     }
     const role = normalizeRole(after.role);
-    const disabled = after.status === 'Disabled';
+    const disabled = after.active === false || after.status === 'Disabled';
     await auth.setCustomUserClaims(uid, {
         role: disabled ? 'Read Only' : role,
         approved: !disabled,
         disabled,
     });
-    if (after.isPublicProfile && !disabled) {
+    if ((after.publicProfile || after.isPublicProfile) && !disabled) {
         await db.collection('teamProfiles').doc(uid).set({
             id: uid,
             uid,
@@ -534,7 +587,10 @@ exports.syncTeamClaims = (0, firestore_1.onDocumentWritten)({ region, document: 
             avatarUrl: after.avatarUrl || null,
             avatarPath: after.avatarPath || null,
             bio: after.bio || '',
+            publicProfile: true,
             isPublicProfile: true,
+            active: true,
+            createdAt: after.createdAt || fieldValue().serverTimestamp(),
             updatedAt: fieldValue().serverTimestamp(),
         }, { merge: true });
     }
@@ -572,7 +628,7 @@ exports.cleanupDeletedProductFiles = (0, firestore_1.onDocumentDeleted)({ region
         logger.error('Failed to cleanup deleted product files', { productId, error });
     }
 });
-exports.cleanupDeletedMaterialFiles = (0, firestore_1.onDocumentDeleted)({ region, document: 'materials/{materialId}' }, async (event) => {
+exports.cleanupDeletedMaterialFiles = (0, firestore_1.onDocumentDeleted)({ region, document: 'inventoryItems/{materialId}' }, async (event) => {
     try {
         await deletePrefix(`website/materials/${event.params.materialId}/`);
     }
@@ -732,7 +788,7 @@ exports.notifyInventoryAutomations = (0, firestore_1.onDocumentWritten)({ region
         });
     }
 });
-exports.notifyJobAutomations = (0, firestore_1.onDocumentWritten)({ region, document: 'productionJobs/{jobId}' }, async (event) => {
+exports.notifyJobAutomations = (0, firestore_1.onDocumentWritten)({ region, document: 'productions/{jobId}' }, async (event) => {
     const before = event.data?.before?.data();
     const after = event.data?.after?.data();
     if (!after || !before || before.status === after.status)

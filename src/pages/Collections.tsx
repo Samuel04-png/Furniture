@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHero, ProductCard, SectionIntro } from '../components/primitives';
+import { getWebsiteMediaItem } from '../lib/websiteMedia';
 import { useTailoredStore } from '../store/useTailoredStore';
-import { asset } from '../config/site';
 
 
 const roomOptions = ['Living', 'Dining', 'Bedroom', 'Office', 'Outdoor'] as const;
@@ -13,6 +13,8 @@ const styleOptions = ['Contemporary', 'Traditional', 'Organic', 'Minimalist'] as
 export default function Collections() {
   const [searchParams, setSearchParams] = useSearchParams();
   const products = useTailoredStore((state) => state.products);
+  const companySettings = useTailoredStore((state) => state.companySettings);
+  const heroMedia = getWebsiteMediaItem(companySettings, 'collectionsHero');
 
   const filters = {
     query: searchParams.get('q') || '',
@@ -22,11 +24,11 @@ export default function Collections() {
     customOnly: searchParams.get('customOnly') === 'true',
   };
 
-  const liveProducts = useMemo(() => products.filter((product) => product.status === 'Live'), [products]);
+  const publishedProducts = useMemo(() => products, [products]);
 
   const filteredProducts = useMemo(
     () =>
-      liveProducts.filter((product) => {
+      publishedProducts.filter((product) => {
         const query = filters.query.trim().toLowerCase();
         const matchesQuery =
           !query ||
@@ -41,7 +43,7 @@ export default function Collections() {
         const matchesCustom = !filters.customOnly || product.customDimensions;
         return matchesQuery && matchesRoom && matchesMaterial && matchesStyle && matchesCustom;
       }),
-    [filters, liveProducts],
+    [filters, publishedProducts],
   );
 
   const updateFilter = (key: 'query' | 'room' | 'material' | 'style' | 'customOnly', value: string | boolean) => {
@@ -69,7 +71,7 @@ export default function Collections() {
         eyebrow="Curated catalogue"
         title="The Collection"
         body="Designed like an editorial selection rather than a retail grid. Filter by room, material, mood, or use case to find a starting point."
-        image={asset('Sleek black leather sofas/Sleek black leather sofas paired in a setup that feels modern, cozy, and beautifully put togethe (1).jpg')}
+        image={heroMedia.image}
         heightClassName="min-h-[62svh]"
 
       />
@@ -141,7 +143,7 @@ export default function Collections() {
           <SectionIntro
             eyebrow="Filtered results"
             title="Pieces ready to be tailored"
-            body="Each card opens a richer product story with dimensions, finish choices, and direct routes into the visualiser and quote flow."
+            body="Each card opens a richer product story with dimensions, finish choices, and a direct route into the quote flow."
           />
 
           {filteredProducts.length ? (

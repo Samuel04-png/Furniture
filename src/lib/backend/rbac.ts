@@ -47,23 +47,25 @@ type AssignableTeamMember = Pick<TeamMember, 'id' | 'role'> &
 
 const workspaceAccess: Record<TeamRole, AdminWorkspace[]> = {
   Owner: [...adminWorkspaces],
-  Admin: [...adminWorkspaces],
-  Sales: ['command-center', 'pipeline', 'products'],
-  Designer: ['command-center', 'pipeline', 'products'],
-  'Production Manager': ['command-center', 'jobs', 'materials'],
-  'Inventory Manager': ['command-center', 'materials', 'jobs'],
-  Procurement: ['command-center', 'materials', 'jobs', 'finance'],
-  Accountant: ['command-center', 'finance', 'pipeline'],
-  'Read Only': ['command-center', 'pipeline', 'jobs', 'materials', 'finance', 'products'],
+  Admin: ['command-center', 'pipeline', 'jobs', 'materials', 'finance', 'products'],
+  Sales: ['command-center', 'pipeline'],
+  Designer: ['command-center', 'pipeline', 'products', 'system'],
+  'Production Manager': ['command-center', 'jobs', 'materials', 'products'],
+  'Inventory Manager': ['command-center', 'materials'],
+  Procurement: ['command-center', 'materials', 'finance'],
+  Accountant: ['command-center', 'finance'],
+  'Read Only': ['command-center'],
   Operations: [...adminWorkspaces],
   Workshop: ['command-center', 'jobs', 'materials'],
   Production: ['command-center', 'jobs', 'materials'],
-  Inventory: ['command-center', 'materials', 'jobs'],
+  Inventory: ['command-center', 'materials'],
 };
 
 const permissionMatrix: Record<TeamRole, AdminPermission[]> = {
   Owner: [...adminPermissions],
-  Admin: [...adminPermissions],
+  Admin: adminPermissions.filter(
+    (permission) => permission !== 'system.view' && permission !== 'system.manage',
+  ),
   Sales: [
     'dashboard.view',
     'lead.view',
@@ -76,58 +78,42 @@ const permissionMatrix: Record<TeamRole, AdminPermission[]> = {
     'session.manage',
     'quote.view',
     'quote.manage',
-    'product.view',
   ],
   Designer: [
     'dashboard.view',
     'lead.view',
     'consultation.view',
-    'consultation.manage',
     'session.view',
-    'session.manage',
     'quote.view',
     'product.view',
     'product.edit',
+    'system.view',
   ],
   'Production Manager': [
     'dashboard.view',
     'job.view',
     'job.advance',
     'inventory.view',
+    'product.view',
   ],
   'Inventory Manager': [
     'dashboard.view',
     'inventory.view',
     'inventory.adjust',
-    'job.view',
   ],
   Procurement: [
     'dashboard.view',
     'inventory.view',
     'procurement.manage',
     'finance.view',
-    'job.view',
+    'finance.edit',
   ],
   Accountant: [
     'dashboard.view',
     'finance.view',
     'finance.edit',
-    'lead.view',
-    'consultation.view',
-    'quote.view',
   ],
-  'Read Only': [
-    'dashboard.view',
-    'lead.view',
-    'consultation.view',
-    'session.view',
-    'quote.view',
-    'job.view',
-    'inventory.view',
-    'finance.view',
-    'product.view',
-    'system.view',
-  ],
+  'Read Only': ['dashboard.view'],
   Operations: [...adminPermissions],
   Workshop: [
     'dashboard.view',
@@ -152,6 +138,10 @@ const permissionMatrix: Record<TeamRole, AdminPermission[]> = {
 export function canAccessWorkspace(workspace: AdminWorkspace, role?: TeamRole | null) {
   if (!role) return false;
   return workspaceAccess[normalizeRole(role)].includes(workspace);
+}
+
+export function hasAccess(role: TeamRole | null | undefined, workspace: AdminWorkspace) {
+  return canAccessWorkspace(workspace, role);
 }
 
 export function canPerform(permission: AdminPermission, role?: TeamRole | null) {
@@ -187,4 +177,9 @@ export function getFirstAssignableTeamMemberId<T extends AssignableTeamMember>(
   predicate: (role?: TeamRole | null) => boolean,
 ) {
   return getAssignableTeamMembers(teamMembers, predicate)[0]?.id;
+}
+
+export function getDefaultWorkspace(role?: TeamRole | null) {
+  const normalizedRole = normalizeRole(role);
+  return workspaceAccess[normalizedRole][0] ?? 'command-center';
 }

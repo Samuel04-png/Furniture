@@ -49,12 +49,85 @@ export function subscribeCollection<T extends DocumentData>(
   );
 }
 
+export function subscribeMergedCollections<T extends { id: string }>(
+  sources: Array<{
+    key: string;
+    path: string;
+    constraints?: QueryConstraint[];
+    priority?: number;
+    map: (item: DocumentData) => T | undefined;
+  }>,
+  onData: (items: T[]) => void,
+  onError?: (error: FirestoreError) => void,
+  sort?: (left: T, right: T) => number,
+): Unsubscribe {
+  const snapshots = new Map<string, T[]>();
+
+  const emit = () => {
+    const merged = new Map<string, { item: T; priority: number }>();
+    const orderedSources = sources
+      .slice()
+      .sort((left, right) => (right.priority ?? 0) - (left.priority ?? 0));
+
+    for (const source of orderedSources) {
+      const items = snapshots.get(source.key) ?? [];
+      const priority = source.priority ?? 0;
+      for (const item of items) {
+        if (!merged.has(item.id)) {
+          merged.set(item.id, { item, priority });
+        }
+      }
+    }
+
+    const items = Array.from(merged.values()).map((entry) => entry.item);
+    if (sort) {
+      items.sort(sort);
+    }
+    onData(items);
+  };
+
+  const unsubscribes = sources.map((source) =>
+    subscribeCollection<DocumentData>(
+      source.path,
+      source.constraints ?? [],
+      (items) => {
+        snapshots.set(
+          source.key,
+          items
+            .map((item) => source.map(item))
+            .filter((entry): entry is T => Boolean(entry)),
+        );
+        emit();
+      },
+      onError,
+    ),
+  );
+
+  return () => {
+    unsubscribes.forEach((unsubscribe) => unsubscribe());
+  };
+}
+
 export async function fetchDocument<T extends DocumentData>(path: string, id: string) {
   const snapshot = await getDoc(doc(db, path, id));
   if (!snapshot.exists()) {
     return undefined;
   }
   return normalizeDocument<T>(snapshot.id, snapshot.data());
+}
+
+export async function fetchFirstDocument<T extends DocumentData>(
+  candidates: Array<{ path: string; id: string; map?: (item: DocumentData) => T }>,
+) {
+  for (const candidate of candidates) {
+    const snapshot = await getDoc(doc(db, candidate.path, candidate.id));
+    if (!snapshot.exists()) {
+      continue;
+    }
+    const normalized = normalizeDocument<T>(snapshot.id, snapshot.data());
+    return candidate.map ? candidate.map(normalized) : normalized;
+  }
+  return undefined;
 }
 
 export function subscribeDocument<T extends DocumentData>(
@@ -75,6 +148,48 @@ export function subscribeDocument<T extends DocumentData>(
     },
     onError,
   );
+}
+
+export function subscribeMergedDocument<T>(
+  sources: Array<{
+    key: string;
+    path: string;
+    id: string;
+    priority?: number;
+    map?: (item: DocumentData) => T;
+  }>,
+  onData: (item: T | undefined) => void,
+  onError?: (error: FirestoreError) => void,
+): Unsubscribe {
+  const snapshots = new Map<string, T | undefined>();
+
+  const emit = () => {
+    const winner = sources
+      .slice()
+      .sort((left, right) => (right.priority ?? 0) - (left.priority ?? 0))
+      .map((source) => snapshots.get(source.key))
+      .find(Boolean);
+    onData(winner);
+  };
+
+  const unsubscribes = sources.map((source) =>
+    subscribeDocument<DocumentData>(
+      source.path,
+      source.id,
+      (item) => {
+        snapshots.set(
+          source.key,
+          item ? (source.map ? source.map(item) : (item as T)) : undefined,
+        );
+        emit();
+      },
+      onError,
+    ),
+  );
+
+  return () => {
+    unsubscribes.forEach((unsubscribe) => unsubscribe());
+  };
 }
 
 export async function createDocument<T extends DocumentData>(

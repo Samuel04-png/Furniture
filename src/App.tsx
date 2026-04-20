@@ -10,7 +10,6 @@ import { cn } from './lib/utils';
 const Home = lazy(() => import('./pages/Home'));
 const Collections = lazy(() => import('./pages/Collections'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
-const Visualiser = lazy(() => import('./pages/Visualiser'));
 const Configurator = lazy(() => import('./pages/Configurator'));
 const Admin = lazy(() => import('./pages/Admin'));
 const BookConsultation = lazy(() => import('./pages/BookConsultation'));
@@ -80,9 +79,6 @@ function AppShell() {
             <Route path="/" element={<Home />} />
             <Route path="/collections" element={<Collections />} />
             <Route path="/collections/:slug" element={<ProductDetail />} />
-            <Route path="/visualise" element={<Visualiser />} />
-            <Route path="/visualise/canvas" element={<Visualiser />} />
-            <Route path="/visualise/submit" element={<Visualiser />} />
             <Route path="/configure" element={<Configurator />} />
             <Route path="/configure/step-2" element={<Configurator />} />
             <Route path="/configure/step-3" element={<Configurator />} />

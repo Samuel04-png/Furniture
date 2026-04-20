@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Upload } from 'lucide-react';
 import { DimensionDiagram, InputField, PageHero, SectionIntro, SelectField, TextAreaField } from '../components/primitives';
-import { asset } from '../config/site';
 import Image from '../components/Image';
+import { getWebsiteMediaItem } from '../lib/websiteMedia';
 
 import { formatCurrency, prepareRoomImage } from '../lib/utils';
 import { useTailoredStore } from '../store/useTailoredStore';
@@ -21,23 +21,30 @@ export default function Configurator() {
   const [params] = useSearchParams();
   const products = useTailoredStore((state) => state.products);
   const materials = useTailoredStore((state) => state.materials);
+  const companySettings = useTailoredStore((state) => state.companySettings);
   const draft = useTailoredStore((state) => state.configuratorDraft);
   const setDraft = useTailoredStore((state) => state.setConfiguratorDraft);
   const resetDraft = useTailoredStore((state) => state.resetConfiguratorDraft);
   const createQuoteRequest = useTailoredStore((state) => state.createQuoteRequest);
   const [submitError, setSubmitError] = useState('');
-  const liveProducts = useMemo(() => products.filter((product) => product.status === 'Live'), [products]);
+  const availableProducts = useMemo(() => products, [products]);
   const currentStep =
     location.pathname.endsWith('/step-4') ? 4 : location.pathname.endsWith('/step-3') ? 3 : location.pathname.endsWith('/step-2') ? 2 : location.pathname.endsWith('/confirmation') ? 5 : 1;
-  const selectedProduct = liveProducts.find((item) => item.id === draft.productId);
+  const selectedProduct = availableProducts.find((item) => item.id === draft.productId);
   const selectedMaterial = materials.find((item) => item.id === draft.materialId);
+  const heroMedia = getWebsiteMediaItem(companySettings, 'configuratorHero');
+  const confirmationHeroMedia = getWebsiteMediaItem(companySettings, 'configuratorConfirmationHero');
+  const continueDisabled =
+    (currentStep === 1 && !draft.productId && !draft.customDesignImage) ||
+    (currentStep === 2 && !draft.materialId) ||
+    (currentStep === 3 && !draft.dimensions.width);
 
   useEffect(() => {
     const productId = params.get('product');
     const materialId = params.get('material');
     const finish = params.get('finish');
     if (productId && !draft.productId) {
-      const product = liveProducts.find((item) => item.id === productId);
+      const product = availableProducts.find((item) => item.id === productId);
       if (product) {
         setDraft({
           productId: product.id,
@@ -50,7 +57,7 @@ export default function Configurator() {
     } else if (materialId && !draft.materialId) {
       setDraft({ materialId });
     }
-  }, [draft.materialId, draft.productId, liveProducts, params, setDraft]);
+  }, [availableProducts, draft.materialId, draft.productId, params, setDraft]);
 
   const estimatedPrice = (() => {
     if (!selectedProduct && !draft.isCustomDesign) return 0;
@@ -98,7 +105,7 @@ export default function Configurator() {
           eyebrow="Quote request sent"
           title="We have received your request."
           body="One of the team will be in touch within 24 hours to confirm dimensions, finish direction, and final pricing."
-          image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (1).jpg')}
+          image={confirmationHeroMedia.image}
           heightClassName="min-h-[52svh]"
 
         >
@@ -106,8 +113,8 @@ export default function Configurator() {
             <Link to="/collections" className="rounded-full bg-tm-gold px-6 py-4 font-dm text-[0.78rem] uppercase tracking-[0.24em] text-tm-charcoal">
               Back to collection
             </Link>
-            <Link to="/visualise" className="rounded-full border border-tm-gold px-6 py-4 font-dm text-[0.78rem] uppercase tracking-[0.24em] text-tm-gold">
-              Visualise a room
+            <Link to="/book-consultation" className="rounded-full border border-tm-gold px-6 py-4 font-dm text-[0.78rem] uppercase tracking-[0.24em] text-tm-gold">
+              Book consultation
             </Link>
           </div>
         </PageHero>
@@ -121,20 +128,20 @@ export default function Configurator() {
         eyebrow="Custom quote system"
         title="A guided configuration experience"
         body="This flow mirrors a luxury retail consultation, not a generic checkout. Every selection lands directly in the admin CRM."
-        image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (2).jpg')}
+        image={heroMedia.image}
         heightClassName="min-h-[48svh]"
 
       />
       <section className="px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <StepHeader currentStep={currentStep} />
-          <div className="mt-12 grid gap-10 lg:grid-cols-[1fr_0.42fr]">
+          <div className="mt-12 grid gap-10 lg:grid-cols-[1fr_0.42fr] lg:items-start">
             <div className="rounded-[2rem] border border-black/8 bg-white p-8 shadow-[0_30px_90px_rgba(12,12,12,0.07)] md:p-10">
               {currentStep === 1 ? (
                 <div>
                   <SectionIntro eyebrow="Step 1" title="Which piece would you like made for you?" body="Choose from the catalogue or start from your own design reference." />
                   <div className="mt-8 grid gap-4 md:grid-cols-2">
-                    {liveProducts.map((product) => (
+                    {availableProducts.map((product) => (
                       <button
                         key={product.id}
                         type="button"
@@ -293,29 +300,16 @@ export default function Configurator() {
                 </form>
               ) : null}
 
-              <div className="mt-10 flex items-center justify-between border-t border-black/8 pt-6">
+              <div className="mt-10 flex items-center border-t border-black/8 pt-6">
                 <button type="button" onClick={back} className={`inline-flex items-center gap-2 font-dm text-[0.72rem] uppercase tracking-[0.24em] ${currentStep === 1 ? 'pointer-events-none opacity-0' : 'text-tm-warm-gray'}`}>
                   <ArrowLeft className="h-4 w-4" />
                   Back
                 </button>
-                <button
-                  type="button"
-                  onClick={next}
-                  disabled={
-                    (currentStep === 1 && !draft.productId && !draft.customDesignImage) ||
-                    (currentStep === 2 && !draft.materialId) ||
-                    (currentStep === 3 && !draft.dimensions.width)
-                  }
-                  className="inline-flex items-center gap-2 rounded-full bg-tm-obsidian px-5 py-3 font-dm text-[0.72rem] uppercase tracking-[0.24em] text-tm-cream disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Continue
-                  <ArrowRight className="h-4 w-4" />
-                </button>
               </div>
             </div>
 
-            <aside className="lg:sticky lg:top-28 lg:self-start">
-              <div className="rounded-[2rem] border border-black/8 bg-white p-6 shadow-[0_30px_90px_rgba(12,12,12,0.07)]">
+            <aside className="lg:self-start">
+              <div className="rounded-[2rem] border border-black/8 bg-white p-6 shadow-[0_30px_90px_rgba(12,12,12,0.07)] lg:sticky lg:top-6 lg:max-h-[calc(100svh-3rem)] lg:overflow-y-auto">
                 <p className="font-dm text-[0.72rem] uppercase tracking-[0.24em] text-tm-warm-gray">Your configuration</p>
                 <div className="mt-5 overflow-hidden rounded-[1.6rem] bg-[#f6f1e7] p-4">
                   {selectedProduct ? <Image src={selectedProduct.cardImage} alt={selectedProduct.name} className="h-56" /> : draft.customDesignImage ? <Image src={draft.customDesignImage} alt="Custom design" className="h-56" /> : <div className="flex h-56 items-center justify-center rounded-[1.4rem] border border-dashed border-black/10 font-dm text-sm text-tm-warm-gray">No piece selected yet</div>}
@@ -332,6 +326,17 @@ export default function Configurator() {
                   <p className="font-dm text-[0.68rem] uppercase tracking-[0.18em] text-tm-cream/56">Estimated price</p>
                   <p className="mt-3 font-cormorant text-[2.4rem] leading-none tracking-[-0.04em]">{estimatedPrice ? formatCurrency(estimatedPrice) : 'TBD'}</p>
                 </div>
+                {currentStep < 4 ? (
+                  <button
+                    type="button"
+                    onClick={next}
+                    disabled={continueDisabled}
+                    className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-tm-obsidian px-5 py-3 font-dm text-[0.72rem] uppercase tracking-[0.24em] text-tm-cream disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Continue
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                ) : null}
                 <button type="button" onClick={resetDraft} className="mt-6 w-full rounded-full border border-black/10 px-5 py-3 font-dm text-[0.72rem] uppercase tracking-[0.24em] text-tm-warm-gray">Reset configuration</button>
               </div>
             </aside>

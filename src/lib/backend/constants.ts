@@ -23,6 +23,7 @@ export const emptyCompanySettings: CompanySettings = {
   showroomHours: [],
   defaultLeadTimes: productCategoryDefaults,
   notificationTemplates: [],
+  websiteMedia: {},
 };
 
 export const supportedRoles: TeamRole[] = [

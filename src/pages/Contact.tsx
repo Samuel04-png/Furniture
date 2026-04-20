@@ -2,14 +2,15 @@ import { type FormEvent, type ReactNode, useState } from 'react';
 import { MapPin, MessageCircle, Phone } from 'lucide-react';
 import Button from '../components/Button';
 import { InputField, PageHero, SectionIntro, TextAreaField } from '../components/primitives';
-import { asset } from '../config/site';
 import { generateId } from '../lib/utils';
+import { getWebsiteMediaItem } from '../lib/websiteMedia';
 
 import { useTailoredStore } from '../store/useTailoredStore';
 
 export default function Contact() {
   const addEnquiry = useTailoredStore((state) => state.addEnquiry);
   const companySettings = useTailoredStore((state) => state.companySettings);
+  const heroMedia = getWebsiteMediaItem(companySettings, 'contactHero');
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [form, setForm] = useState({
@@ -33,6 +34,7 @@ export default function Contact() {
         productNames: [],
         status: 'New',
         channel: 'Contact Form',
+        sourceLabel: 'Contact Form',
         createdAt: new Date().toISOString(),
         notes: [
           {
@@ -42,6 +44,7 @@ export default function Contact() {
             createdAt: new Date().toISOString(),
           },
         ],
+        read: false,
       });
       setSubmitted(true);
     } catch (error) {
@@ -55,8 +58,8 @@ export default function Contact() {
       <PageHero
         eyebrow="Get in touch"
         title="Visit the studio or start the conversation online"
-        body="The consultation can begin through WhatsApp, the room visualiser, or a direct message here."
-        image={asset('ideal dining table/Designed to bring warmth, style, and everyday elegance to your home. With the festive season he (4).jpg')}
+        body="The conversation can begin through WhatsApp, Facebook Messenger, or a direct message here."
+        image={heroMedia.image}
 
         heightClassName="min-h-[56svh]"
 
@@ -108,7 +111,7 @@ export default function Contact() {
                 <SectionIntro
                   eyebrow="Direct message"
                   title="Tell us about your space"
-                  body="We use this as an initial brief before recommending a visualiser route, a direct consultation, or a specific piece."
+                  body="We use this as an initial brief before recommending a consultation, a configuration route, or a specific piece."
                 />
                 <div className="grid gap-5 md:grid-cols-2">
                   <InputField label="Full name" required value={form.clientName} onChange={(event) => setForm((current) => ({ ...current, clientName: event.target.value }))} />

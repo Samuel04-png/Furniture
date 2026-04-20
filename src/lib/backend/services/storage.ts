@@ -20,6 +20,24 @@ function ensureImageFile(file: File) {
   }
 }
 
+async function uploadAdminMediaAtPath(
+  path: string,
+  file: File,
+  customMetadata: Record<string, string>,
+) {
+  ensureImageFile(file);
+  const storageRef = ref(storage, path);
+  const snapshot = await uploadBytes(storageRef, file, {
+    contentType: file.type,
+    customMetadata,
+  });
+
+  return {
+    path,
+    url: await getDownloadURL(snapshot.ref),
+  };
+}
+
 function dataUrlToBlob(dataUrl: string) {
   const [header, content] = dataUrl.split(',');
   const mimeMatch = /data:(.*?);base64/.exec(header);
@@ -84,45 +102,37 @@ export async function uploadProductMedia(
   slot: 'hero' | 'card' | 'gallery',
   file: File,
 ) {
-  ensureImageFile(file);
-  const path = `products/${productId}/${slot}/${Date.now()}-${sanitizeName(file.name)}`;
-  const storageRef = ref(storage, path);
-  const snapshot = await uploadBytes(storageRef, file, {
-    contentType: file.type,
-    customMetadata: {
-      productId,
-      slot,
-      originalName: file.name,
+  return uploadAdminMediaAtPath(
+    `products/${sanitizeName(productId)}/${slot}/${Date.now()}-${sanitizeName(file.name)}`,
+    file,
+    {
+    productId,
+    slot,
+    originalName: file.name,
     },
-  });
-
-  return {
-    path,
-    url: await getDownloadURL(snapshot.ref),
-  };
+  );
 }
 
 export async function uploadWebsiteMedia(
-  folder: 'materials' | 'sample-rooms' | 'testimonials' | 'portfolio' | 'team-profiles',
+  folder:
+    | 'materials'
+    | 'sample-rooms'
+    | 'testimonials'
+    | 'portfolio'
+    | 'team-profiles'
+    | 'page-media',
   recordId: string,
   slot: string,
   file: File,
 ) {
-  ensureImageFile(file);
-  const path = `website/${folder}/${recordId}/${sanitizeName(slot)}/${Date.now()}-${sanitizeName(file.name)}`;
-  const storageRef = ref(storage, path);
-  const snapshot = await uploadBytes(storageRef, file, {
-    contentType: file.type,
-    customMetadata: {
-      folder,
-      recordId,
-      slot,
-      originalName: file.name,
+  return uploadAdminMediaAtPath(
+    `website/${sanitizeName(folder)}/${sanitizeName(recordId)}/${sanitizeName(slot)}-${Date.now()}-${sanitizeName(file.name)}`,
+    file,
+    {
+    folder,
+    recordId,
+    slot,
+    originalName: file.name,
     },
-  });
-
-  return {
-    path,
-    url: await getDownloadURL(snapshot.ref),
-  };
+  );
 }

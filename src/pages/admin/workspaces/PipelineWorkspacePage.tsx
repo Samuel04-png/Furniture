@@ -3,12 +3,44 @@ import { ArrowUpRight, MessagesSquare, PackagePlus } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { AdminAnchorButton, AdminButton, AdminEmptyState, AdminListRow, AdminMetric, AdminModal, AdminPage, AdminPageHeader, AdminStatusChip, AdminSubnav, AdminSurface, AdminSurfaceHeader, AdminToolbar } from '../../../components/admin/AdminUi';
 import { canOwnLeads, canPerform, canTakeConsultations, getAssignableTeamMembers } from '../../../lib/adminAccess';
-import { createWhatsAppLink, formatDateTime, generateId } from '../../../lib/utils';
+import { createWhatsAppLink, formatCurrency, formatDateTime, generateId } from '../../../lib/utils';
 import { useTailoredStore } from '../../../store/useTailoredStore';
 import type { Consultation, Enquiry, EnquirySource } from '../../../types';
 import { defaultLeadForm, Field, getLeadNextAction, InfoBlock, pipelineTabLabel, pipelineTabs, safeDigits, SearchField, SelectInput, TextArea, TextInput, toneForConsultation, toneForEnquiry, useActiveAdmin } from './shared';
 
 const leadStatusFilters = ['New', 'Consultation Scheduled', 'Quote Sent', 'Negotiation', 'Won'] as const;
+
+function formatTimeSince(value?: string) {
+  if (!value) return 'Unknown timing';
+
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return 'Unknown timing';
+
+  const diffMs = Date.now() - timestamp;
+  const diffMinutes = Math.max(1, Math.round(diffMs / 60_000));
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m ago`;
+  }
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  }
+
+  const diffDays = Math.round(diffHours / 24);
+  if (diffDays < 7) {
+    return `${diffDays}d ago`;
+  }
+
+  const diffWeeks = Math.round(diffDays / 7);
+  if (diffWeeks < 5) {
+    return `${diffWeeks}w ago`;
+  }
+
+  const diffMonths = Math.round(diffDays / 30);
+  return `${diffMonths}mo ago`;
+}
 
 export function PipelineWorkspacePage() {
   const params = useParams();
@@ -39,6 +71,7 @@ export function PipelineWorkspacePage() {
   const [editingConsultationId, setEditingConsultationId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
   const [leadForm, setLeadForm] = useState(defaultLeadForm());
+  const [statusFilter, setStatusFilter] = useState<(typeof leadStatusFilters)[number] | ''>('');
   const leadOwnerOptions = useMemo(
     () => getAssignableTeamMembers(teamMembers, canOwnLeads),
     [teamMembers],
@@ -73,14 +106,45 @@ export function PipelineWorkspacePage() {
     }
   }, [searchParams]);
 
-  const filteredLeads = useMemo(() => enquiries.filter((enquiry) => [enquiry.clientName, enquiry.email, enquiry.phone, enquiry.productNames.join(' ')].join(' ').toLowerCase().includes(search.toLowerCase())), [enquiries, search]);
+  const filteredLeads = useMemo(
+    () =>
+      enquiries.filter((enquiry) => {
+        const matchesSearch = [
+          enquiry.clientName,
+          enquiry.email,
+          enquiry.phone,
+          enquiry.productNames.join(' '),
+          enquiry.sourceLabel,
+          enquiry.channel,
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(search.toLowerCase());
+        const matchesStatus = !statusFilter || enquiry.status === statusFilter;
+        return matchesSearch && matchesStatus;
+      }),
+    [enquiries, search, statusFilter],
+  );
   const filteredSessions = useMemo(() => visualiserSessions.filter((session) => [session.clientName, session.email, session.roomName].join(' ').toLowerCase().includes(search.toLowerCase())), [search, visualiserSessions]);
   const filteredConsultations = useMemo(() => consultations.filter((consultation) => [consultation.clientName, consultation.email, consultation.notes].join(' ').toLowerCase().includes(search.toLowerCase())), [consultations, search]);
-  const filteredQuotes = useMemo(() => enquiries.filter((item) => ['Quote Sent', 'Negotiation', 'Won'].includes(item.status) && `${item.clientName} ${item.productNames.join(' ')}`.toLowerCase().includes(search.toLowerCase())), [enquiries, search]);
+  const filteredQuotes = useMemo(
+    () =>
+      enquiries.filter((item) => {
+        const inQuoteStage = ['Quote Sent', 'Negotiation', 'Won'].includes(item.status);
+        const matchesSearch = `${item.clientName} ${item.productNames.join(' ')} ${item.sourceLabel ?? item.channel}`
+          .toLowerCase()
+          .includes(search.toLowerCase());
+        const matchesStatus = !statusFilter || item.status === statusFilter;
+        return inQuoteStage && matchesSearch && matchesStatus;
+      }),
+    [enquiries, search, statusFilter],
+  );
 
   const selectedLead = filteredLeads.find((item) => item.id === selectedLeadId) ?? filteredLeads[0];
   const selectedSession = filteredSessions.find((item) => item.id === selectedSessionId) ?? filteredSessions[0];
   const selectedConsultation = filteredConsultations.find((item) => item.id === selectedConsultationId) ?? filteredConsultations[0];
+  const selectedLeadConfiguration = selectedLead?.configuration ?? selectedLead?.configurationData;
+  const selectedLeadSource = selectedLead?.sourceLabel ?? selectedLead?.channel ?? selectedLead?.type ?? 'Unknown';
 
   useEffect(() => {
     if (selectedLead) setConsultationForm((current) => ({ ...current, enquiryId: current.enquiryId || selectedLead.id }));
@@ -164,8 +228,16 @@ export function PipelineWorkspacePage() {
     setConsultationModalOpen(true);
   };
 
-  const statusFilterActive = (value: string) => search.toLowerCase() === value.toLowerCase();
-  const toggleStatusFilter = (value: string) => setSearch((current) => (current.toLowerCase() === value.toLowerCase() ? '' : value));
+  const handleLeadSelect = (lead: Enquiry) => {
+    setSelectedLeadId(lead.id);
+    if (lead.read === false) {
+      void updateEnquiry(lead.id, { read: true });
+    }
+  };
+
+  const statusFilterActive = (value: string) => statusFilter === value;
+  const toggleStatusFilter = (value: (typeof leadStatusFilters)[number]) =>
+    setStatusFilter((current) => (current === value ? '' : value));
 
   return (
     <AdminPage>
@@ -193,13 +265,13 @@ export function PipelineWorkspacePage() {
         <div className="grid gap-6 xl:grid-cols-[minmax(300px,340px)_minmax(0,1fr)]">
           <AdminSurface className="space-y-3">
             <AdminSurfaceHeader title="Lead queue" description="Fast first contact and disciplined follow-up keep premium clients warm." />
-            {filteredLeads.length ? filteredLeads.map((enquiry) => <AdminListRow key={enquiry.id} title={enquiry.clientName} subtitle={enquiry.productNames.join(', ') || 'No products linked yet'} meta={`${enquiry.channel} - ${formatDateTime(enquiry.createdAt)}`} active={selectedLead?.id === enquiry.id} onClick={() => setSelectedLeadId(enquiry.id)} status={<AdminStatusChip label={enquiry.status} tone={toneForEnquiry(enquiry.status)} />} />) : <AdminEmptyState title="No leads match this filter" body="Clear the search or add a new lead to keep the pipeline moving." action={canCreateLead ? <AdminButton onClick={() => setLeadModalOpen(true)}>Add lead</AdminButton> : undefined} />}
+            {filteredLeads.length ? filteredLeads.map((enquiry) => <AdminListRow key={enquiry.id} title={enquiry.clientName} subtitle={enquiry.email || enquiry.phone || 'No contact details captured'} meta={`${enquiry.sourceLabel ?? enquiry.channel ?? enquiry.type} - ${formatTimeSince(enquiry.createdAt)}`} active={selectedLead?.id === enquiry.id} onClick={() => handleLeadSelect(enquiry)} className={enquiry.read === false ? 'border-[#dfc69d] bg-[#fff9ee]' : undefined} status={<><AdminStatusChip label={enquiry.status} tone={toneForEnquiry(enquiry.status)} />{enquiry.read === false ? <AdminStatusChip label="New" tone="accent" /> : null}</>} />) : <AdminEmptyState title="No leads match this filter" body="Clear the search or add a new lead to keep the pipeline moving." action={canCreateLead ? <AdminButton onClick={() => setLeadModalOpen(true)}>Add lead</AdminButton> : undefined} />}
           </AdminSurface>
 
           <AdminSurface>
             {selectedLead ? (
               <>
-                <AdminSurfaceHeader title={selectedLead.clientName} description={`${selectedLead.email} - ${selectedLead.phone}`} action={<div className="flex flex-wrap gap-2"><AdminAnchorButton href={leadWhatsappLink} target="_blank" rel="noreferrer" tone="secondary"><MessagesSquare className="h-4 w-4" />Open WhatsApp reply</AdminAnchorButton>{canEditLead ? <AdminButton tone="ghost" onClick={() => openEditLeadModal(selectedLead)}>Edit lead</AdminButton> : null}{canCreateConsultation ? <AdminButton onClick={() => setConsultationModalOpen(true)}>Book consultation</AdminButton> : null}{canDeleteRecords ? <AdminButton tone="danger" onClick={() => { if (!window.confirm(`Delete lead for ${selectedLead.clientName}? This cannot be undone.`)) return; void deleteEnquiry(selectedLead.id); }}>Delete lead</AdminButton> : null}</div>} />
+              <AdminSurfaceHeader title={selectedLead.clientName} description={`${selectedLead.email || 'No email'} - ${selectedLead.phone || 'No phone'} - ${selectedLeadSource}`} action={<div className="flex flex-wrap gap-2"><AdminAnchorButton href={leadWhatsappLink} target="_blank" rel="noreferrer" tone="secondary"><MessagesSquare className="h-4 w-4" />Open WhatsApp reply</AdminAnchorButton>{canEditLead ? <AdminButton tone="ghost" onClick={() => openEditLeadModal(selectedLead)}>Edit lead</AdminButton> : null}{canCreateConsultation ? <AdminButton onClick={() => setConsultationModalOpen(true)}>Book consultation</AdminButton> : null}{canDeleteRecords ? <AdminButton tone="danger" onClick={() => { if (!window.confirm(`Delete lead for ${selectedLead.clientName}? This cannot be undone.`)) return; void deleteEnquiry(selectedLead.id); }}>Delete lead</AdminButton> : null}</div>} />
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <AdminMetric label="Stage" value={selectedLead.status} meta={`Owner: ${teamMembers.find((member) => member.id === selectedLead.assignedTo)?.name ?? 'Unassigned'}`} tone="warm" />
@@ -215,12 +287,27 @@ export function PipelineWorkspacePage() {
                         <Field label="Owner"><SelectInput value={selectedLead.assignedTo ?? ''} disabled={!canEditLead || !leadOwnerOptions.length} onChange={(event) => assignEnquiry(selectedLead.id, event.target.value)}><option value="">Unassigned</option>{leadOwnerOptions.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</SelectInput></Field>
                       </div>
                       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                        <InfoBlock label="Source" value={selectedLead.type} />
+                        <InfoBlock label="Source" value={selectedLeadSource} />
+                        <InfoBlock label="Lead type" value={selectedLead.type} />
                         <InfoBlock label="Preferred contact" value={selectedLead.preferredContactTime || 'Not captured'} />
                         <InfoBlock label="Products" value={selectedLead.productNames.join(', ') || 'None yet'} />
                         <InfoBlock label="Channel" value={selectedLead.channel} />
                       </div>
                     </div>
+
+                    {selectedLeadConfiguration ? (
+                      <div className="rounded-[1.35rem] border border-black/7 bg-white p-4">
+                        <p className="text-[0.68rem] font-medium uppercase tracking-[0.22em] text-tm-warm-gray">Configuration</p>
+                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                          <InfoBlock label="Product" value={selectedLeadConfiguration.productName || 'Custom design'} />
+                          <InfoBlock label="Material" value={selectedLeadConfiguration.materialId || 'Not selected'} />
+                          <InfoBlock label="Finish" value={selectedLeadConfiguration.finish || 'Not selected'} />
+                          <InfoBlock label="Dimensions" value={`${selectedLeadConfiguration.dimensions?.width || 0} x ${selectedLeadConfiguration.dimensions?.depth || 0} x ${selectedLeadConfiguration.dimensions?.height || 0} cm`} />
+                          <InfoBlock label="Quantity" value={String(selectedLeadConfiguration.quantity || 1)} />
+                          <InfoBlock label="Estimated price" value={selectedLeadConfiguration.estimatedPrice ? formatCurrency(selectedLeadConfiguration.estimatedPrice) : 'Not captured'} />
+                        </div>
+                      </div>
+                    ) : null}
 
                     <div className="rounded-[1.35rem] border border-black/7 bg-white p-4">
                       <p className="text-[0.68rem] font-medium uppercase tracking-[0.22em] text-tm-warm-gray">Activity & notes</p>
@@ -343,7 +430,7 @@ export function PipelineWorkspacePage() {
       ) : null}
 
       <AdminModal open={leadModalOpen} title={editingLeadId ? 'Edit lead' : 'Add lead'} description="Quick capture and edit stay intentionally short so sales can keep the pipeline clean without losing speed." onClose={() => { setLeadModalOpen(false); setEditingLeadId(null); setLeadForm(defaultLeadForm()); clearAction(); }}>
-        <form className="grid gap-4 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); const productNames = leadForm.productNames.split(',').map((item) => item.trim()).filter(Boolean); if (editingLeadId) { const existing = enquiries.find((item) => item.id === editingLeadId); if (!existing) return; void updateEnquiry(editingLeadId, { type: leadForm.source, clientName: leadForm.clientName, phone: leadForm.phone, email: leadForm.email, channel: leadForm.channel, productNames, productIds: existing.productIds.length ? existing.productIds : productNames.map((_, index) => `${editingLeadId}-product-${index + 1}`) }); setSelectedLeadId(editingLeadId); } else { const enquiry: Enquiry = { id: generateId('enquiry'), type: leadForm.source, clientName: leadForm.clientName, phone: leadForm.phone, email: leadForm.email, productIds: [], productNames, status: 'New', assignedTo: activeMember?.id, channel: leadForm.channel, createdAt: new Date().toISOString(), notes: [], preferredContactTime: '' }; addEnquiry(enquiry); setSelectedLeadId(enquiry.id); } setLeadForm(defaultLeadForm()); setLeadModalOpen(false); setEditingLeadId(null); clearAction(); }}>
+        <form className="grid gap-4 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); const productNames = leadForm.productNames.split(',').map((item) => item.trim()).filter(Boolean); if (editingLeadId) { const existing = enquiries.find((item) => item.id === editingLeadId); if (!existing) return; void updateEnquiry(editingLeadId, { type: leadForm.source, clientName: leadForm.clientName, phone: leadForm.phone, email: leadForm.email, channel: leadForm.channel, sourceLabel: leadForm.channel || existing.sourceLabel || 'Admin Lead', productNames, productIds: existing.productIds.length ? existing.productIds : productNames.map((_, index) => `${editingLeadId}-product-${index + 1}`) }); setSelectedLeadId(editingLeadId); } else { const enquiry: Enquiry = { id: generateId('enquiry'), type: leadForm.source, clientName: leadForm.clientName, phone: leadForm.phone, email: leadForm.email, productIds: [], productNames, status: 'New', assignedTo: activeMember?.id, channel: leadForm.channel, sourceLabel: leadForm.channel || 'Admin Lead', createdAt: new Date().toISOString(), notes: [], preferredContactTime: '', read: false }; addEnquiry(enquiry); setSelectedLeadId(enquiry.id); } setLeadForm(defaultLeadForm()); setLeadModalOpen(false); setEditingLeadId(null); clearAction(); }}>
           <Field label="Client name"><TextInput value={leadForm.clientName} onChange={(event) => setLeadForm((current) => ({ ...current, clientName: event.target.value }))} required /></Field>
           <Field label="Phone"><TextInput value={leadForm.phone} onChange={(event) => setLeadForm((current) => ({ ...current, phone: event.target.value }))} required /></Field>
           <Field label="Email"><TextInput type="email" value={leadForm.email} onChange={(event) => setLeadForm((current) => ({ ...current, email: event.target.value }))} required /></Field>

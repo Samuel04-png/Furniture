@@ -3,7 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-r
 import { Bell, Boxes, BriefcaseBusiness, ChevronLeft, ChevronRight, Command, LayoutDashboard, LogOut, Menu, PackageSearch, Shield, Wallet, X } from 'lucide-react';
 import { LogoMark } from '../components/primitives';
 import { cn } from '../lib/utils';
-import { canAccessWorkspace, type AdminWorkspace } from '../lib/adminAccess';
+import { canAccessWorkspace, getDefaultWorkspace, type AdminWorkspace } from '../lib/adminAccess';
 import { useTailoredStore } from '../store/useTailoredStore';
 import type { TeamMember } from '../types';
 import { AdminAuthLoadingPage, AdminLoginPage } from './admin/AdminModules';
@@ -59,7 +59,12 @@ function WorkspaceRoute({ workspace, children }: { workspace: AdminWorkspace; ch
           initials: 'TM',
         }
       : undefined);
-  return canAccessWorkspace(workspace, activeMember?.role) ? <>{children}</> : <Navigate to="/admin/command-center" replace />;
+  const defaultWorkspace = getDefaultWorkspace(activeMember?.role);
+  return canAccessWorkspace(workspace, activeMember?.role) ? (
+    <>{children}</>
+  ) : (
+    <Navigate to={`/admin/${defaultWorkspace === 'command-center' ? 'command-center' : defaultWorkspace}`} replace />
+  );
 }
 
 export default function Admin() {
@@ -133,7 +138,17 @@ export default function Admin() {
   ], []);
 
   if (!authReady) return <AdminAuthLoadingPage />;
-  if (location.pathname === '/admin') return authenticated ? <Navigate to="/admin/command-center" replace /> : <AdminLoginPage />;
+  if (location.pathname === '/admin') {
+    const defaultWorkspace = getDefaultWorkspace(activeMember?.role);
+    return authenticated ? (
+      <Navigate
+        to={`/admin/${defaultWorkspace === 'command-center' ? 'command-center' : defaultWorkspace}`}
+        replace
+      />
+    ) : (
+      <AdminLoginPage />
+    );
+  }
   if (!authenticated) return <Navigate to="/admin" replace />;
 
   return (

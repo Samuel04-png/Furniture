@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { ArrowUpRight, CircleAlert, Sparkles, TriangleAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -23,42 +24,104 @@ export function CommandCenterPage() {
   const inventoryItems = useTailoredStore((state) => state.inventoryItems);
   const teamMembers = useTailoredStore((state) => state.teamMembers);
   const activeMember = useActiveAdmin();
-
-  const upcomingConsultations = [...consultations]
-    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-    .slice(0, 4);
-  const activeJobs = productionOrders
-    .filter((order) => order.status !== 'Delivered')
-    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
-  const outstandingPayments = accountingRecords.filter((record) => {
-    const label = getAccountingStatusLabel(record);
-    return label === 'Unpaid' || label === 'Overdue';
-  });
-  const stockAlerts = inventoryItems.filter((item) => item.onHand <= item.reorderPoint);
-  const nextActions = [
-    ...enquiries
-      .filter((item) => item.status === 'New')
-      .slice(0, 3)
-      .map((item) => ({
-        title: `Respond to ${item.clientName}`,
-        meta: `Lead came in ${formatDateTime(item.createdAt)}`,
-        href: '/admin/pipeline/leads',
-      })),
-    ...outstandingPayments
-      .filter((item) => getAccountingStatusLabel(item) === 'Overdue')
-      .slice(0, 2)
-      .map((item) => ({
-        title: `Chase ${item.title}`,
-        meta: `${item.clientName ?? 'Client record'} is overdue`,
-        href: item.type === 'Invoice' ? `/admin/finance/invoices/${item.id}` : '/admin/finance/invoices',
-      })),
-    ...activeJobs.slice(0, 2).map((item) => ({
-      title: `Review ${item.productName}`,
-      meta: `${item.status} - due ${formatDate(item.deadline)}`,
-      href: '/admin/jobs/board',
-    })),
-  ];
-  const outstandingValue = outstandingPayments.reduce((sum, item) => sum + item.amount, 0);
+  const now = useMemo(() => new Date(), [enquiries.length, consultations.length, productionOrders.length, accountingRecords.length, inventoryItems.length]);
+  const startOfToday = useMemo(() => {
+    const next = new Date(now);
+    next.setHours(0, 0, 0, 0);
+    return next;
+  }, [now]);
+  const invoiceRecords = useMemo(
+    () => accountingRecords.filter((record) => record.type === 'Invoice'),
+    [accountingRecords],
+  );
+  const outstandingInvoices = useMemo(
+    () =>
+      invoiceRecords
+        .filter((record) => {
+          const label = getAccountingStatusLabel(record);
+          return label === 'Unpaid' || label === 'Overdue';
+        })
+        .sort((left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime()),
+    [invoiceRecords],
+  );
+  const overdueInvoices = useMemo(
+    () => outstandingInvoices.filter((record) => getAccountingStatusLabel(record) === 'Overdue'),
+    [outstandingInvoices],
+  );
+  const unpaidInvoices = useMemo(
+    () => outstandingInvoices.filter((record) => getAccountingStatusLabel(record) === 'Unpaid'),
+    [outstandingInvoices],
+  );
+  const upcomingConsultations = useMemo(
+    () =>
+      [...consultations]
+        .filter((consultation) => new Date(consultation.scheduledAt).getTime() >= startOfToday.getTime())
+        .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+        .slice(0, 4),
+    [consultations, startOfToday],
+  );
+  const activeJobs = useMemo(
+    () =>
+      productionOrders
+        .filter((order) => order.status !== 'Delivered')
+        .sort((a, b) => new Date(a.deliveryDate || a.deadline).getTime() - new Date(b.deliveryDate || b.deadline).getTime()),
+    [productionOrders],
+  );
+  const overdueJobs = useMemo(
+    () =>
+      activeJobs.filter((order) => {
+        const dueAt = new Date(order.deliveryDate || order.deadline).getTime();
+        return !Number.isNaN(dueAt) && dueAt < startOfToday.getTime();
+      }),
+    [activeJobs, startOfToday],
+  );
+  const staleLeads = useMemo(
+    () =>
+      enquiries.filter((item) => {
+        if (item.status === 'Won' || item.status === 'Lost') return false;
+        const activityAt = new Date(item.updatedAt || item.createdAt).getTime();
+        return !Number.isNaN(activityAt) && now.getTime() - activityAt >= 48 * 60 * 60 * 1000;
+      }),
+    [enquiries, now],
+  );
+  const leadsWithoutFirstResponse = useMemo(
+    () => enquiries.filter((item) => item.status === 'New' && item.notes.length === 0),
+    [enquiries],
+  );
+  const stockAlerts = useMemo(
+    () => inventoryItems.filter((item) => item.onHand <= item.reorderPoint),
+    [inventoryItems],
+  );
+  const nextActions = useMemo(
+    () =>
+      [
+        ...staleLeads.map((item) => ({
+          title: `Follow up with ${item.clientName}`,
+          meta: `No lead activity since ${formatDateTime(item.updatedAt || item.createdAt)}`,
+          href: '/admin/pipeline/leads',
+          priorityAt: new Date(item.updatedAt || item.createdAt).getTime(),
+        })),
+        ...overdueJobs.map((item) => ({
+          title: `Rescue ${item.productName}`,
+          meta: `${item.clientName} is past due from ${formatDate(item.deliveryDate || item.deadline)}`,
+          href: '/admin/jobs/board',
+          priorityAt: new Date(item.deliveryDate || item.deadline).getTime(),
+        })),
+        ...overdueInvoices.map((item) => ({
+          title: `Collect ${item.title}`,
+          meta: `${item.clientName ?? 'Client record'} is overdue from ${formatDate(item.dueDate)}`,
+          href: `/admin/finance/invoices/${item.id}`,
+          priorityAt: new Date(item.dueDate).getTime(),
+        })),
+      ]
+        .sort((left, right) => left.priorityAt - right.priorityAt)
+        .slice(0, 6),
+    [overdueInvoices, overdueJobs, staleLeads],
+  );
+  const outstandingValue = useMemo(
+    () => unpaidInvoices.reduce((sum, item) => sum + item.amount, 0),
+    [unpaidInvoices],
+  );
 
   return (
     <AdminPage>
@@ -76,9 +139,9 @@ export function CommandCenterPage() {
 
       <div className="grid gap-4 xl:grid-cols-4">
         <AdminMetric label="Fresh leads" value={String(enquiries.filter((item) => item.status === 'New').length)} meta="Needs first response" tone="warm" />
-        <AdminMetric label="Upcoming consults" value={String(upcomingConsultations.length)} meta="Next 4 appointments" />
+        <AdminMetric label="Upcoming consults" value={String(upcomingConsultations.length)} meta="Next 4 upcoming appointments" />
         <AdminMetric label="Active jobs" value={String(activeJobs.length)} meta="Not yet delivered" />
-        <AdminMetric label="Outstanding cash" value={formatCurrency(outstandingValue)} meta="Invoices and deposits due" tone={outstandingValue > 0 ? 'alert' : 'default'} />
+        <AdminMetric label="Outstanding cash" value={formatCurrency(outstandingValue)} meta="Unpaid invoice total" tone={outstandingValue > 0 ? 'alert' : 'default'} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
@@ -121,15 +184,15 @@ export function CommandCenterPage() {
             <div className="flex items-start gap-3 rounded-[1.25rem] border border-[#dfc69d] bg-[#fbf6ed] px-4 py-4">
               <TriangleAlert className="mt-0.5 h-4 w-4 text-[#94642d]" />
               <div>
-                <p className="text-sm font-semibold text-[#6f4d24]">{outstandingPayments.filter((item) => getAccountingStatusLabel(item) === 'Overdue').length} overdue payment records</p>
-                <p className="mt-1 text-sm text-[#8a6740]">Prioritize reminders and release gates before production dates slip.</p>
+                <p className="text-sm font-semibold text-[#6f4d24]">{overdueInvoices.length} overdue invoices</p>
+                <p className="mt-1 text-sm text-[#8a6740]">Prioritize same-day reminders before jobs or deliveries slip.</p>
               </div>
             </div>
             <div className="flex items-start gap-3 rounded-[1.25rem] border border-black/7 bg-[#fbf7f1] px-4 py-4">
               <Sparkles className="mt-0.5 h-4 w-4 text-tm-gold" />
               <div>
-                <p className="text-sm font-semibold text-tm-charcoal">{enquiries.filter((item) => item.status === 'New').length} fresh enquiries within the response window</p>
-                <p className="mt-1 text-sm text-tm-warm-gray">Fast first contact is the easiest commercial win in the system.</p>
+                <p className="text-sm font-semibold text-tm-charcoal">{leadsWithoutFirstResponse.length} leads without a first response</p>
+                <p className="mt-1 text-sm text-tm-warm-gray">These leads are still new and do not yet have a logged response note.</p>
               </div>
             </div>
           </div>
@@ -191,9 +254,9 @@ export function CommandCenterPage() {
         </AdminSurface>
 
         <AdminSurface>
-          <AdminSurfaceHeader title="Outstanding payments" description="Commercial follow-through tied to real operational records." />
+          <AdminSurfaceHeader title="Outstanding invoices" description="Commercial follow-through tied to live invoice records." />
           <div className="space-y-3">
-            {outstandingPayments.slice(0, 5).map((record) => (
+            {outstandingInvoices.slice(0, 5).map((record) => (
               <div key={record.id} className="rounded-[1.25rem] border border-black/7 px-4 py-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>

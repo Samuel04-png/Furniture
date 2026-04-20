@@ -13,6 +13,7 @@ import {
   AdminSurface,
   AdminSurfaceHeader,
 } from '../../../components/admin/AdminUi';
+import { PublicShareTools } from '../../../components/admin/PublicShareTools';
 import { canPerform } from '../../../lib/adminAccess';
 import { getAccountingStatusLabel } from '../../../lib/invoices';
 import { uploadWebsiteMedia } from '../../../lib/backend/services/storage';
@@ -38,6 +39,7 @@ const createDefaultItemForm = () => ({
   reserved: '0',
   reorderPoint: '0',
   supplier: '',
+  costPerUnit: '0',
   eta: '',
 });
 
@@ -122,6 +124,19 @@ export function MaterialsWorkspacePage() {
   const [poForm, setPoForm] = useState(createDefaultPoForm());
   const [libraryForm, setLibraryForm] = useState(createDefaultLibraryForm());
   const [grainFile, setGrainFile] = useState<File | null>(null);
+  const [pageError, setPageError] = useState('');
+  const [stockError, setStockError] = useState('');
+  const [itemModalError, setItemModalError] = useState('');
+  const [poModalError, setPoModalError] = useState('');
+  const [libraryModalError, setLibraryModalError] = useState('');
+  const [isSavingStock, setIsSavingStock] = useState(false);
+  const [isSavingItem, setIsSavingItem] = useState(false);
+  const [isSavingPo, setIsSavingPo] = useState(false);
+  const [isSavingLibrary, setIsSavingLibrary] = useState(false);
+  const [isPublishingStockItem, setIsPublishingStockItem] = useState(false);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
+  const [isDeletingPo, setIsDeletingPo] = useState(false);
+  const [isDeletingMaterial, setIsDeletingMaterial] = useState(false);
   const canAdjustStock = canPerform('inventory.adjust', activeMember?.role);
   const canManageProcurement = canPerform('procurement.manage', activeMember?.role);
   const canDeleteRecords = canPerform('system.manage', activeMember?.role);
@@ -134,17 +149,25 @@ export function MaterialsWorkspacePage() {
   );
   const selectedItem = filteredItems.find((item) => item.id === selectedItemId) ?? filteredItems[0];
   const purchaseOrders = accountingRecords.filter((record) => record.type === 'Purchase Order');
+  const websiteMaterials = useMemo(
+    () => adminMaterials.filter((material) => material.publishedToWebsite === true),
+    [adminMaterials],
+  );
   const filteredMaterials = useMemo(
     () =>
-      adminMaterials.filter((material) =>
+      websiteMaterials.filter((material) =>
         `${material.name} ${material.origin} ${material.bestFor.join(' ')} ${material.availableFinishes.join(' ')}`
           .toLowerCase()
           .includes(librarySearch.toLowerCase()),
       ),
-    [adminMaterials, librarySearch],
+    [librarySearch, websiteMaterials],
   );
   const selectedMaterial =
     filteredMaterials.find((material) => material.id === selectedLibraryId) ?? filteredMaterials[0];
+  const selectedItemWebsiteMaterial = selectedItem
+    ? adminMaterials.find((material) => material.id === selectedItem.id)
+    : undefined;
+  const isSelectedItemPublished = selectedItemWebsiteMaterial?.publishedToWebsite === true;
 
   useEffect(() => {
     if (!filteredItems.length) {
@@ -179,8 +202,39 @@ export function MaterialsWorkspacePage() {
     setGrainFile(null);
   };
 
+  const closeStockDrawer = () => {
+    setStockDrawerOpen(false);
+    setStockError('');
+    setStockForm({ mode: 'receive', quantity: 1, reserve: 0 });
+    clearAction();
+  };
+
+  const closeItemModal = () => {
+    setItemModalOpen(false);
+    setEditingItemId(null);
+    setItemModalError('');
+    resetItemForm();
+    clearAction();
+  };
+
+  const closePoModal = () => {
+    setPoModalOpen(false);
+    setEditingPoId(null);
+    setPoModalError('');
+    resetPoForm();
+    clearAction();
+  };
+
+  const closeLibraryModal = () => {
+    setLibraryModalOpen(false);
+    setEditingMaterialId(null);
+    setLibraryModalError('');
+    resetLibraryForm();
+  };
+
   const openCreateItemModal = () => {
     setEditingItemId(null);
+    setItemModalError('');
     resetItemForm();
     setItemModalOpen(true);
   };
@@ -195,13 +249,16 @@ export function MaterialsWorkspacePage() {
       reserved: String(item.reserved),
       reorderPoint: String(item.reorderPoint),
       supplier: item.supplier,
+      costPerUnit: String(item.costPerUnit ?? 0),
       eta: item.eta,
     });
+    setItemModalError('');
     setItemModalOpen(true);
   };
 
   const openCreatePoModal = () => {
     setEditingPoId(null);
+    setPoModalError('');
     resetPoForm();
     setPoModalOpen(true);
   };
@@ -215,11 +272,13 @@ export function MaterialsWorkspacePage() {
       dueDate: record.dueDate,
       status: record.status,
     });
+    setPoModalError('');
     setPoModalOpen(true);
   };
 
   const openCreateMaterialModal = () => {
     setEditingMaterialId(null);
+    setLibraryModalError('');
     resetLibraryForm();
     setLibraryModalOpen(true);
   };
@@ -237,9 +296,11 @@ export function MaterialsWorkspacePage() {
       accentTone: material.accentTone,
       availableFinishes: serializeList(material.availableFinishes),
       sortOrder: String(material.sortOrder ?? 100),
-      visibleOnSite: material.visibleOnSite === false ? 'false' : 'true',
+      visibleOnSite:
+        material.publishedToWebsite === true || material.visibleOnSite !== false ? 'true' : 'false',
     });
     setGrainFile(null);
+    setLibraryModalError('');
     setLibraryModalOpen(true);
   };
 
@@ -268,9 +329,10 @@ export function MaterialsWorkspacePage() {
         items={[
           { label: 'Stock', href: '/admin/materials/stock', active: tab === 'stock', count: inventoryItems.length },
           { label: 'Purchase Orders', href: '/admin/materials/purchase-orders', active: tab === 'purchase-orders', count: purchaseOrders.length },
-          { label: 'Website Library', href: '/admin/materials/library', active: tab === 'library', count: adminMaterials.length },
+          { label: 'Website Library', href: '/admin/materials/library', active: tab === 'library', count: websiteMaterials.length },
         ]}
       />
+      {pageError ? <div className="rounded-[1.2rem] border border-[#d9a8a8] bg-[#fff6f5] px-4 py-3 text-sm text-[#8f1e1e]">{pageError}</div> : null}
 
       {tab === 'stock' ? (
         <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -304,9 +366,10 @@ export function MaterialsWorkspacePage() {
                   description={`${selectedItem.category} - supplier ${selectedItem.supplier}`}
                   action={canAdjustStock ? (
                     <div className="flex flex-wrap gap-2">
-                      <AdminButton tone="secondary" onClick={() => setStockDrawerOpen(true)}>Adjust stock</AdminButton>
+                      <AdminButton tone="secondary" onClick={() => { setStockError(''); setStockDrawerOpen(true); }}>Adjust stock</AdminButton>
                       <AdminButton tone="ghost" onClick={() => openEditItemModal(selectedItem)}>Edit item</AdminButton>
-                      {canDeleteRecords ? <AdminButton tone="danger" onClick={() => { if (!window.confirm(`Delete ${selectedItem.name}? This cannot be undone.`)) return; void deleteInventoryItem(selectedItem.id); }}>Delete item</AdminButton> : null}
+                      <AdminButton tone={isSelectedItemPublished ? 'ghost' : 'secondary'} disabled={isPublishingStockItem} onClick={async () => { setPageError(''); setIsPublishingStockItem(true); try { const nextPublishedState = !isSelectedItemPublished; await updateMaterial(selectedItem.id, { name: selectedItem.name, type: selectedItem.category, unit: selectedItem.unit, quantity: selectedItem.onHand, reorderPoint: selectedItem.reorderPoint, supplier: selectedItem.supplier, costPerUnit: selectedItem.costPerUnit ?? 0, publishedToWebsite: nextPublishedState, visibleOnSite: nextPublishedState }); if (nextPublishedState) { setSelectedLibraryId(selectedItem.id); } } catch (error) { console.error('Failed to update stock item website visibility:', error); setPageError('We could not update website publishing for this stock item right now.'); } finally { setIsPublishingStockItem(false); } }}>{isPublishingStockItem ? 'Saving...' : isSelectedItemPublished ? 'Hide from website' : 'Publish to website'}</AdminButton>
+                      {canDeleteRecords ? <AdminButton tone="danger" disabled={isDeletingItem} onClick={async () => { if (!window.confirm(`Delete ${selectedItem.name}? This cannot be undone.`)) return; setPageError(''); setIsDeletingItem(true); try { await deleteInventoryItem(selectedItem.id); } catch (error) { console.error('Failed to delete stock item:', error); setPageError('We could not delete this stock item right now.'); } finally { setIsDeletingItem(false); } }}>{isDeletingItem ? 'Deleting...' : 'Delete item'}</AdminButton> : null}
                     </div>
                   ) : null}
                 />
@@ -316,8 +379,10 @@ export function MaterialsWorkspacePage() {
                   <InfoBlock label="Reorder point" value={String(selectedItem.reorderPoint)} />
                 </div>
                 <div className="mt-6 grid gap-4 md:grid-cols-2">
+                  <InfoBlock label="Website status" value={isSelectedItemPublished ? 'Published to the public materials page' : 'Internal only'} />
                   <InfoBlock label="ETA" value={selectedItem.eta || 'Not captured'} />
                   <InfoBlock label="Suggested action" value={selectedItem.onHand <= selectedItem.reorderPoint ? 'Create a purchase order and notify operations' : 'Monitor consumption trend'} />
+                  <InfoBlock label="Cost per unit" value={formatCurrency(selectedItem.costPerUnit ?? 0)} />
                 </div>
                 <div className="mt-6 rounded-[1.3rem] border border-black/7 bg-[#fbf7f1] p-4">
                   <p className="text-[0.68rem] font-medium uppercase tracking-[0.22em] text-tm-warm-gray">Reservation logic</p>
@@ -349,7 +414,7 @@ export function MaterialsWorkspacePage() {
                   {canManageProcurement ? (
                     <div className="mt-4 flex flex-wrap gap-2">
                       <AdminButton tone="ghost" onClick={() => openEditPoModal(record)}>Edit PO</AdminButton>
-                      {canDeleteRecords ? <AdminButton tone="danger" onClick={() => { if (!window.confirm(`Delete ${record.title}? This cannot be undone.`)) return; void deleteAccountingRecord(record.id); }}>Delete PO</AdminButton> : null}
+                      {canDeleteRecords ? <AdminButton tone="danger" disabled={isDeletingPo} onClick={async () => { if (!window.confirm(`Delete ${record.title}? This cannot be undone.`)) return; setPageError(''); setIsDeletingPo(true); try { await deleteAccountingRecord(record.id); } catch (error) { console.error('Failed to delete purchase order:', error); setPageError('We could not delete this purchase order right now.'); } finally { setIsDeletingPo(false); } }}>{isDeletingPo ? 'Deleting...' : 'Delete PO'}</AdminButton> : null}
                     </div>
                   ) : null}
                 </div>
@@ -389,7 +454,7 @@ export function MaterialsWorkspacePage() {
                   meta={material.bestFor.slice(0, 2).join(' • ') || 'Material profile'}
                   active={selectedMaterial?.id === material.id}
                   onClick={() => setSelectedLibraryId(material.id)}
-                  status={<AdminStatusChip label={material.visibleOnSite === false ? 'Hidden' : 'Visible'} tone={material.visibleOnSite === false ? 'neutral' : 'success'} />}
+                  status={<AdminStatusChip label={material.publishedToWebsite === true ? 'Visible' : 'Hidden'} tone={material.publishedToWebsite === true ? 'success' : 'neutral'} />}
                 />
               )) : <AdminEmptyState title="No website materials yet" body="Create a material profile so the public site and configurator can present it properly." action={canAdjustStock ? <AdminButton onClick={openCreateMaterialModal}>Add website material</AdminButton> : undefined} />}
             </div>
@@ -404,8 +469,8 @@ export function MaterialsWorkspacePage() {
                   action={canAdjustStock ? (
                     <div className="flex flex-wrap gap-2">
                       <AdminButton tone="ghost" onClick={() => openEditMaterialModal(selectedMaterial)}>Edit material</AdminButton>
-                      <AdminButton tone={selectedMaterial.visibleOnSite === false ? 'secondary' : 'ghost'} onClick={() => void updateMaterial(selectedMaterial.id, { visibleOnSite: selectedMaterial.visibleOnSite === false })}>{selectedMaterial.visibleOnSite === false ? 'Show on website' : 'Hide from website'}</AdminButton>
-                      <AdminButton tone="danger" onClick={() => { if (!window.confirm(`Delete ${selectedMaterial.name}? This cannot be undone.`)) return; void deleteMaterial(selectedMaterial.id); }}>Delete material</AdminButton>
+                      <AdminButton tone={selectedMaterial.publishedToWebsite === true ? 'ghost' : 'secondary'} disabled={isSavingLibrary} onClick={async () => { setPageError(''); try { setIsSavingLibrary(true); const nextPublishedState = selectedMaterial.publishedToWebsite !== true; await updateMaterial(selectedMaterial.id, { publishedToWebsite: nextPublishedState, visibleOnSite: nextPublishedState }); } catch (error) { console.error('Failed to update material website visibility:', error); setPageError('We could not update this material on the website right now.'); } finally { setIsSavingLibrary(false); } }}>{isSavingLibrary ? 'Saving...' : selectedMaterial.publishedToWebsite === true ? 'Hide from website' : 'Show on website'}</AdminButton>
+                      <AdminButton tone="danger" disabled={isDeletingMaterial} onClick={async () => { if (!window.confirm(`Delete ${selectedMaterial.name}? This cannot be undone.`)) return; setPageError(''); setIsDeletingMaterial(true); try { await deleteMaterial(selectedMaterial.id); } catch (error) { console.error('Failed to delete material:', error); setPageError('We could not delete this website material right now.'); } finally { setIsDeletingMaterial(false); } }}>{isDeletingMaterial ? 'Deleting...' : 'Delete material'}</AdminButton>
                     </div>
                   ) : null}
                 />
@@ -418,7 +483,7 @@ export function MaterialsWorkspacePage() {
                   <div className="space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <InfoBlock label="Origin" value={selectedMaterial.origin} />
-                      <InfoBlock label="Website status" value={selectedMaterial.visibleOnSite === false ? 'Hidden from public site' : 'Visible on public site'} />
+                      <InfoBlock label="Website status" value={selectedMaterial.publishedToWebsite === true ? 'Visible on public site' : 'Hidden from public site'} />
                       <InfoBlock label="Tone" value={selectedMaterial.tone} />
                       <InfoBlock label="Accent tone" value={selectedMaterial.accentTone} />
                     </div>
@@ -437,6 +502,13 @@ export function MaterialsWorkspacePage() {
                       <TagCard label="Best for" items={selectedMaterial.bestFor} emptyText="No best-fit tags yet." />
                       <TagCard label="Available finishes" items={selectedMaterial.availableFinishes} emptyText="No finish options yet." />
                     </div>
+
+                    <PublicShareTools
+                      title={selectedMaterial.name}
+                      url={`/materials/${selectedMaterial.id}`}
+                      secondaryUrl={selectedMaterial.grainImage}
+                      secondaryLabel="Copy grain image"
+                    />
                   </div>
                 </div>
               </>
@@ -449,23 +521,32 @@ export function MaterialsWorkspacePage() {
         open={stockDrawerOpen}
         title={selectedItem ? `Adjust ${selectedItem.name}` : 'Adjust stock'}
         description="Use a focused drawer so the team can adjust quantity without losing visibility on the stock list."
-        onClose={() => { setStockDrawerOpen(false); clearAction(); }}
+        onClose={closeStockDrawer}
       >
         {selectedItem ? (
           <form
             className="space-y-4"
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault();
-              const nextOnHand = stockForm.mode === 'receive' ? selectedItem.onHand + stockForm.quantity : Math.max(0, selectedItem.onHand - stockForm.quantity);
-              void updateInventoryItem(selectedItem.id, { onHand: nextOnHand, reserved: Math.max(0, selectedItem.reserved + stockForm.reserve) });
-              setStockDrawerOpen(false);
-              clearAction();
+              setStockError('');
+              setIsSavingStock(true);
+              try {
+                const nextOnHand = stockForm.mode === 'receive' ? selectedItem.onHand + stockForm.quantity : Math.max(0, selectedItem.onHand - stockForm.quantity);
+                await updateInventoryItem(selectedItem.id, { onHand: nextOnHand, reserved: Math.max(0, selectedItem.reserved + stockForm.reserve) });
+                closeStockDrawer();
+              } catch (error) {
+                console.error('Failed to adjust stock:', error);
+                setStockError('We could not save this stock adjustment right now.');
+              } finally {
+                setIsSavingStock(false);
+              }
             }}
           >
             <Field label="Adjustment type"><SelectInput value={stockForm.mode} onChange={(event) => setStockForm((current) => ({ ...current, mode: event.target.value }))}><option value="receive">Receive stock</option><option value="consume">Consume stock</option></SelectInput></Field>
             <Field label="Quantity"><TextInput type="number" min={1} value={stockForm.quantity} onChange={(event) => setStockForm((current) => ({ ...current, quantity: Number(event.target.value || 1) }))} /></Field>
             <Field label="Reservation delta"><TextInput type="number" min={0} value={stockForm.reserve} onChange={(event) => setStockForm((current) => ({ ...current, reserve: Number(event.target.value || 0) }))} /></Field>
-            <div className="flex justify-end gap-3"><AdminButton type="button" tone="ghost" onClick={() => { setStockDrawerOpen(false); clearAction(); }}>Cancel</AdminButton><AdminButton type="submit">Save adjustment</AdminButton></div>
+            {stockError ? <p className="rounded-[1rem] border border-[#d9a8a8] bg-[#fff6f5] px-4 py-3 text-sm text-[#8f1e1e]">{stockError}</p> : null}
+            <div className="flex justify-end gap-3"><AdminButton type="button" tone="ghost" disabled={isSavingStock} onClick={closeStockDrawer}>Cancel</AdminButton><AdminButton type="submit" disabled={isSavingStock}>{isSavingStock ? 'Saving...' : 'Save adjustment'}</AdminButton></div>
           </form>
         ) : null}
       </AdminDrawer>
@@ -474,35 +555,43 @@ export function MaterialsWorkspacePage() {
         open={itemModalOpen}
         title={editingItemId ? 'Edit stock item' : 'Add stock item'}
         description="Create or edit stock records so inventory, procurement, and jobs stay aligned."
-        onClose={() => { setItemModalOpen(false); setEditingItemId(null); clearAction(); }}
+        onClose={closeItemModal}
       >
         <form
           className="grid gap-4 sm:grid-cols-2"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
-            const payload = { name: itemForm.name, category: itemForm.category, unit: itemForm.unit, onHand: Number(itemForm.onHand || 0), reserved: Number(itemForm.reserved || 0), reorderPoint: Number(itemForm.reorderPoint || 0), supplier: itemForm.supplier, eta: itemForm.eta };
-            if (editingItemId) {
-              void updateInventoryItem(editingItemId, payload);
-            } else {
-              const newItem = { id: generateId('inv'), ...payload };
-              void addInventoryItem(newItem);
-              setSelectedItemId(newItem.id);
+            setItemModalError('');
+            setIsSavingItem(true);
+            try {
+              const payload = { name: itemForm.name, category: itemForm.category, unit: itemForm.unit, onHand: Number(itemForm.onHand || 0), reserved: Number(itemForm.reserved || 0), reorderPoint: Number(itemForm.reorderPoint || 0), supplier: itemForm.supplier, costPerUnit: Number(itemForm.costPerUnit || 0), eta: itemForm.eta };
+              if (editingItemId) {
+                await updateInventoryItem(editingItemId, payload);
+              } else {
+                const newItem = { id: generateId('inv'), ...payload };
+                await addInventoryItem(newItem);
+                setSelectedItemId(newItem.id);
+              }
+              closeItemModal();
+            } catch (error) {
+              console.error('Failed to save stock item:', error);
+              setItemModalError('We could not save this stock item right now. Please try again.');
+            } finally {
+              setIsSavingItem(false);
             }
-            resetItemForm();
-            setItemModalOpen(false);
-            setEditingItemId(null);
-            clearAction();
           }}
         >
           <Field label="Item name"><TextInput value={itemForm.name} onChange={(event) => setItemForm((current) => ({ ...current, name: event.target.value }))} placeholder="Mukwa boards" required /></Field>
           <Field label="Category"><SelectInput value={itemForm.category} onChange={(event) => setItemForm((current) => ({ ...current, category: event.target.value as InventoryItem['category'] }))}>{['Hardwood', 'Fabric', 'Hardware', 'Finishing'].map((category) => <option key={category} value={category}>{category}</option>)}</SelectInput></Field>
-          <Field label="Unit"><TextInput value={itemForm.unit} onChange={(event) => setItemForm((current) => ({ ...current, unit: event.target.value }))} placeholder="m3, rolls, pieces" required /></Field>
-          <Field label="Supplier"><TextInput value={itemForm.supplier} onChange={(event) => setItemForm((current) => ({ ...current, supplier: event.target.value }))} required /></Field>
-          <Field label="On hand"><TextInput type="number" min={0} value={itemForm.onHand} onChange={(event) => setItemForm((current) => ({ ...current, onHand: event.target.value }))} required /></Field>
-          <Field label="Reserved"><TextInput type="number" min={0} value={itemForm.reserved} onChange={(event) => setItemForm((current) => ({ ...current, reserved: event.target.value }))} required /></Field>
-          <Field label="Reorder point"><TextInput type="number" min={0} value={itemForm.reorderPoint} onChange={(event) => setItemForm((current) => ({ ...current, reorderPoint: event.target.value }))} required /></Field>
+          <Field label="Unit"><TextInput value={itemForm.unit} onChange={(event) => setItemForm((current) => ({ ...current, unit: event.target.value }))} placeholder="m3, rolls, pieces" /></Field>
+          <Field label="Supplier"><TextInput value={itemForm.supplier} onChange={(event) => setItemForm((current) => ({ ...current, supplier: event.target.value }))} /></Field>
+          <Field label="On hand"><TextInput type="number" min={0} value={itemForm.onHand} onChange={(event) => setItemForm((current) => ({ ...current, onHand: event.target.value }))} /></Field>
+          <Field label="Reserved"><TextInput type="number" min={0} value={itemForm.reserved} onChange={(event) => setItemForm((current) => ({ ...current, reserved: event.target.value }))} /></Field>
+          <Field label="Reorder point"><TextInput type="number" min={0} value={itemForm.reorderPoint} onChange={(event) => setItemForm((current) => ({ ...current, reorderPoint: event.target.value }))} /></Field>
+          <Field label="Cost per unit"><TextInput type="number" min={0} value={itemForm.costPerUnit} onChange={(event) => setItemForm((current) => ({ ...current, costPerUnit: event.target.value }))} /></Field>
           <Field label="ETA"><TextInput type="date" value={itemForm.eta} onChange={(event) => setItemForm((current) => ({ ...current, eta: event.target.value }))} /></Field>
-          <div className="sm:col-span-2 flex justify-end gap-3"><AdminButton type="button" tone="ghost" onClick={() => { setItemModalOpen(false); setEditingItemId(null); clearAction(); }}>Cancel</AdminButton><AdminButton type="submit">{editingItemId ? 'Save changes' : 'Create stock item'}</AdminButton></div>
+          {itemModalError ? <p className="sm:col-span-2 rounded-[1rem] border border-[#d9a8a8] bg-[#fff6f5] px-4 py-3 text-sm text-[#8f1e1e]">{itemModalError}</p> : null}
+          <div className="sm:col-span-2 flex justify-end gap-3"><AdminButton type="button" tone="ghost" disabled={isSavingItem} onClick={closeItemModal}>Cancel</AdminButton><AdminButton type="submit" disabled={isSavingItem}>{isSavingItem ? 'Saving...' : editingItemId ? 'Save changes' : 'Create stock item'}</AdminButton></div>
         </form>
       </AdminModal>
 
@@ -510,30 +599,37 @@ export function MaterialsWorkspacePage() {
         open={poModalOpen}
         title={editingPoId ? 'Edit purchase order' : 'Create purchase order'}
         description="PO creation stays short and dedicated so procurement can act without cluttering the daily stock view."
-        onClose={() => { setPoModalOpen(false); setEditingPoId(null); clearAction(); }}
+        onClose={closePoModal}
       >
         <form
           className="grid gap-4 sm:grid-cols-2"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
-            if (editingPoId) {
-              void updateAccountingRecord(editingPoId, { title: poForm.title, clientName: poForm.clientName, amount: Number(poForm.amount || 0), status: poForm.status, dueDate: poForm.dueDate });
-            } else {
-              const record: AccountingRecord = { id: generateId('acct'), type: 'Purchase Order', title: poForm.title, clientName: poForm.clientName, amount: Number(poForm.amount || 0), status: poForm.status, dueDate: poForm.dueDate, issuedDate: new Date().toISOString() };
-              void addAccountingRecord(record);
+            setPoModalError('');
+            setIsSavingPo(true);
+            try {
+              if (editingPoId) {
+                await updateAccountingRecord(editingPoId, { title: poForm.title, clientName: poForm.clientName, amount: Number(poForm.amount || 0), status: poForm.status, dueDate: poForm.dueDate });
+              } else {
+                const record: AccountingRecord = { id: generateId('acct'), type: 'Purchase Order', title: poForm.title, clientName: poForm.clientName, amount: Number(poForm.amount || 0), status: poForm.status, dueDate: poForm.dueDate, issuedDate: new Date().toISOString() };
+                await addAccountingRecord(record);
+              }
+              closePoModal();
+            } catch (error) {
+              console.error('Failed to save purchase order:', error);
+              setPoModalError('We could not save this purchase order right now. Please try again.');
+            } finally {
+              setIsSavingPo(false);
             }
-            resetPoForm();
-            setPoModalOpen(false);
-            setEditingPoId(null);
-            clearAction();
           }}
         >
           <Field label="PO title"><TextInput value={poForm.title} onChange={(event) => setPoForm((current) => ({ ...current, title: event.target.value }))} placeholder="PO - Walnut slabs" required /></Field>
           <Field label="Supplier / linked client"><TextInput value={poForm.clientName} onChange={(event) => setPoForm((current) => ({ ...current, clientName: event.target.value }))} placeholder="Supplier name" /></Field>
-          <Field label="Amount"><TextInput type="number" min={0} value={poForm.amount} onChange={(event) => setPoForm((current) => ({ ...current, amount: event.target.value }))} required /></Field>
-          <Field label="Due date"><TextInput type="date" value={poForm.dueDate} onChange={(event) => setPoForm((current) => ({ ...current, dueDate: event.target.value }))} required /></Field>
+          <Field label="Amount"><TextInput type="number" min={0} value={poForm.amount} onChange={(event) => setPoForm((current) => ({ ...current, amount: event.target.value }))} /></Field>
+          <Field label="Due date"><TextInput type="date" value={poForm.dueDate} onChange={(event) => setPoForm((current) => ({ ...current, dueDate: event.target.value }))} /></Field>
           <Field label="Status"><SelectInput value={poForm.status} onChange={(event) => setPoForm((current) => ({ ...current, status: event.target.value as AccountingRecord['status'] }))}>{['Draft', 'Issued', 'Paid', 'Overdue'].map((status) => <option key={status} value={status}>{status}</option>)}</SelectInput></Field>
-          <div className="sm:col-span-2 flex justify-end gap-3"><AdminButton type="button" tone="ghost" onClick={() => { setPoModalOpen(false); setEditingPoId(null); clearAction(); }}>Cancel</AdminButton><AdminButton type="submit">{editingPoId ? 'Save changes' : 'Create PO'}</AdminButton></div>
+          {poModalError ? <p className="sm:col-span-2 rounded-[1rem] border border-[#d9a8a8] bg-[#fff6f5] px-4 py-3 text-sm text-[#8f1e1e]">{poModalError}</p> : null}
+          <div className="sm:col-span-2 flex justify-end gap-3"><AdminButton type="button" tone="ghost" disabled={isSavingPo} onClick={closePoModal}>Cancel</AdminButton><AdminButton type="submit" disabled={isSavingPo}>{isSavingPo ? 'Saving...' : editingPoId ? 'Save changes' : 'Create PO'}</AdminButton></div>
         </form>
       </AdminModal>
 
@@ -541,42 +637,58 @@ export function MaterialsWorkspacePage() {
         open={libraryModalOpen}
         title={editingMaterialId ? 'Edit website material' : 'Add website material'}
         description="These fields power the public material pages and the configurator's material storytelling."
-        onClose={() => { setLibraryModalOpen(false); setEditingMaterialId(null); resetLibraryForm(); }}
+        onClose={closeLibraryModal}
       >
         <form
           className="grid gap-4 sm:grid-cols-2"
           onSubmit={async (event) => {
             event.preventDefault();
-            const materialId = editingMaterialId ?? createMaterialId(libraryForm.name, adminMaterials.map((material) => material.id));
-            const uploadedGrain = grainFile ? await uploadWebsiteMedia('materials', materialId, 'grain', grainFile) : null;
-            const payload = { name: libraryForm.name, origin: libraryForm.origin, description: libraryForm.description, character: libraryForm.character, bestFor: parseList(libraryForm.bestFor), grainImage: uploadedGrain?.url || libraryForm.grainImage, grainImagePath: uploadedGrain?.path ?? undefined, tone: libraryForm.tone, accentTone: libraryForm.accentTone, availableFinishes: parseList(libraryForm.availableFinishes), sortOrder: Number(libraryForm.sortOrder || 100), visibleOnSite: libraryForm.visibleOnSite === 'true' };
+            setLibraryModalError('');
+            setIsSavingLibrary(true);
+            try {
+              const materialId = editingMaterialId ?? createMaterialId(libraryForm.name, adminMaterials.map((material) => material.id));
+              const existingMaterial = adminMaterials.find((material) => material.id === materialId);
+              const uploadedGrain = grainFile ? await uploadWebsiteMedia('materials', materialId, 'grain', grainFile) : null;
+              const publishedToWebsite = libraryForm.visibleOnSite === 'true';
+              const payload = { name: libraryForm.name, origin: libraryForm.origin, description: libraryForm.description, character: libraryForm.character, bestFor: parseList(libraryForm.bestFor), grainImage: uploadedGrain?.url || libraryForm.grainImage || existingMaterial?.grainImage || '', grainImagePath: uploadedGrain?.path ?? existingMaterial?.grainImagePath ?? undefined, tone: libraryForm.tone, accentTone: libraryForm.accentTone, availableFinishes: parseList(libraryForm.availableFinishes), sortOrder: Number(libraryForm.sortOrder || 100), publishedToWebsite, visibleOnSite: publishedToWebsite };
 
-            if (editingMaterialId) {
-              await updateMaterial(editingMaterialId, payload);
-              setSelectedLibraryId(editingMaterialId);
-            } else {
-              await addMaterial({ id: materialId, ...payload });
-              setSelectedLibraryId(materialId);
+              if (editingMaterialId) {
+                await updateMaterial(editingMaterialId, payload);
+                if (publishedToWebsite) {
+                  setSelectedLibraryId(editingMaterialId);
+                }
+              } else {
+                await addMaterial({ id: materialId, ...payload });
+                if (publishedToWebsite) {
+                  setSelectedLibraryId(materialId);
+                }
+              }
+
+              closeLibraryModal();
+            } catch (error) {
+              console.error('Failed to save website material:', error);
+              setLibraryModalError('We could not save this website material right now. Please try again.');
+            } finally {
+              setIsSavingLibrary(false);
             }
-
-            setLibraryModalOpen(false);
-            setEditingMaterialId(null);
-            resetLibraryForm();
           }}
         >
           <Field label="Material name"><TextInput value={libraryForm.name} onChange={(event) => setLibraryForm((current) => ({ ...current, name: event.target.value }))} placeholder="Mukwa" required /></Field>
-          <Field label="Origin"><TextInput value={libraryForm.origin} onChange={(event) => setLibraryForm((current) => ({ ...current, origin: event.target.value }))} placeholder="Zambia" required /></Field>
-          <Field label="Tone"><TextInput value={libraryForm.tone} onChange={(event) => setLibraryForm((current) => ({ ...current, tone: event.target.value }))} placeholder="#8c6643" required /></Field>
-          <Field label="Accent tone"><TextInput value={libraryForm.accentTone} onChange={(event) => setLibraryForm((current) => ({ ...current, accentTone: event.target.value }))} placeholder="#b58a57" required /></Field>
+          <Field label="Origin"><TextInput value={libraryForm.origin} onChange={(event) => setLibraryForm((current) => ({ ...current, origin: event.target.value }))} placeholder="Zambia" /></Field>
+          <Field label="Tone"><TextInput value={libraryForm.tone} onChange={(event) => setLibraryForm((current) => ({ ...current, tone: event.target.value }))} placeholder="#8c6643" /></Field>
+          <Field label="Accent tone"><TextInput value={libraryForm.accentTone} onChange={(event) => setLibraryForm((current) => ({ ...current, accentTone: event.target.value }))} placeholder="#b58a57" /></Field>
           <Field label="Best for"><TextInput value={libraryForm.bestFor} onChange={(event) => setLibraryForm((current) => ({ ...current, bestFor: event.target.value }))} placeholder="Dining tables, feature cabinetry" /></Field>
           <Field label="Available finishes"><TextInput value={libraryForm.availableFinishes} onChange={(event) => setLibraryForm((current) => ({ ...current, availableFinishes: event.target.value }))} placeholder="Natural oil, Satin lacquer, Matte seal" /></Field>
           <Field label="Website status"><SelectInput value={libraryForm.visibleOnSite} onChange={(event) => setLibraryForm((current) => ({ ...current, visibleOnSite: event.target.value }))}><option value="true">Visible on website</option><option value="false">Hidden from website</option></SelectInput></Field>
           <Field label="Sort order"><TextInput type="number" min={0} value={libraryForm.sortOrder} onChange={(event) => setLibraryForm((current) => ({ ...current, sortOrder: event.target.value }))} /></Field>
-          <Field label="Grain image URL"><TextInput value={libraryForm.grainImage} onChange={(event) => setLibraryForm((current) => ({ ...current, grainImage: event.target.value }))} placeholder="https://..." required={!grainFile} /></Field>
-          <Field label="Grain image file"><TextInput type="file" accept="image/*" onChange={(event) => setGrainFile(event.target.files?.[0] ?? null)} /></Field>
-          <Field label="Description"><TextArea value={libraryForm.description} onChange={(event) => setLibraryForm((current) => ({ ...current, description: event.target.value }))} className="min-h-[110px]" required /></Field>
-          <Field label="Character"><TextArea value={libraryForm.character} onChange={(event) => setLibraryForm((current) => ({ ...current, character: event.target.value }))} className="min-h-[110px]" required /></Field>
-          <div className="sm:col-span-2 flex justify-end gap-3"><AdminButton type="button" tone="ghost" onClick={() => { setLibraryModalOpen(false); setEditingMaterialId(null); resetLibraryForm(); }}>Cancel</AdminButton><AdminButton type="submit">{editingMaterialId ? 'Save changes' : 'Create website material'}</AdminButton></div>
+          <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+            <Field label="Upload from device"><TextInput type="file" accept="image/*" onChange={(event) => setGrainFile(event.target.files?.[0] ?? null)} /></Field>
+            <Field label="Or paste an image URL"><TextInput value={libraryForm.grainImage} onChange={(event) => setLibraryForm((current) => ({ ...current, grainImage: event.target.value }))} placeholder="https://..." /></Field>
+          </div>
+          <Field label="Description"><TextArea value={libraryForm.description} onChange={(event) => setLibraryForm((current) => ({ ...current, description: event.target.value }))} className="min-h-[110px]" /></Field>
+          <Field label="Character"><TextArea value={libraryForm.character} onChange={(event) => setLibraryForm((current) => ({ ...current, character: event.target.value }))} className="min-h-[110px]" /></Field>
+          {libraryModalError ? <p className="sm:col-span-2 rounded-[1rem] border border-[#d9a8a8] bg-[#fff6f5] px-4 py-3 text-sm text-[#8f1e1e]">{libraryModalError}</p> : null}
+          <div className="sm:col-span-2 flex justify-end gap-3"><AdminButton type="button" tone="ghost" disabled={isSavingLibrary} onClick={closeLibraryModal}>Cancel</AdminButton><AdminButton type="submit" disabled={isSavingLibrary}>{isSavingLibrary ? 'Saving...' : editingMaterialId ? 'Save changes' : 'Create website material'}</AdminButton></div>
         </form>
       </AdminModal>
     </AdminPage>

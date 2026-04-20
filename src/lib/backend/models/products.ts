@@ -10,6 +10,7 @@ import type {
 import { slugify } from '../../utils';
 
 interface LegacyProductShape extends Partial<Product> {
+  imageUrl?: string | null;
   priceFromZMW?: number;
   leadTimeDays?: number;
   featured?: boolean;
@@ -199,7 +200,7 @@ function normalizeGallery(raw: LegacyProductShape, category: ProductCategory) {
   const gallery = Array.isArray(raw.gallery) ? raw.gallery.filter(Boolean) : [];
   const images = Array.from(
     new Set(
-      [raw.heroImage, raw.cardImage, ...gallery, ...defaults.gallery]
+      [raw.heroImage, raw.cardImage, raw.imageUrl, ...gallery, ...defaults.gallery]
         .filter((entry): entry is string => Boolean(entry)),
     ),
   );
@@ -220,6 +221,10 @@ export function normalizeProductRecord(
   const materials = parseMaterialIds(raw.materials, category);
   const priceFrom = Number(raw.priceFrom ?? raw.priceFromZMW ?? 0);
   const featured = raw.website?.featured ?? raw.featured ?? false;
+  const publishedToWebsite =
+    raw.publishedToWebsite ??
+    raw.website?.isPublished ??
+    status === 'Live';
 
   return {
     id: productId,
@@ -232,8 +237,8 @@ export function normalizeProductRecord(
     materials,
     finishes: Array.isArray(raw.finishes) && raw.finishes.length ? raw.finishes : defaultFinishes(category),
     upholsterySwatches: raw.upholsterySwatches ?? [],
-    heroImage: raw.heroImage || gallery[0] || defaults.heroImage,
-    cardImage: raw.cardImage || gallery[1] || gallery[0] || defaults.cardImage,
+    heroImage: raw.heroImage || raw.imageUrl || gallery[0] || defaults.heroImage,
+    cardImage: raw.cardImage || raw.imageUrl || gallery[1] || gallery[0] || defaults.cardImage,
     gallery,
     summary,
     story: raw.story || summary,
@@ -255,11 +260,12 @@ export function normalizeProductRecord(
     overlayKind: raw.overlayKind || defaults.overlayKind,
     silhouetteTone: raw.silhouetteTone,
     processGallery: Array.isArray(raw.processGallery) ? raw.processGallery : [],
+    publishedToWebsite,
     website: {
-      isPublished: raw.website?.isPublished ?? status === 'Live',
+      isPublished: raw.website?.isPublished ?? publishedToWebsite,
       visibility:
         raw.website?.visibility ??
-        (status === 'Live' ? 'public' : 'internal'),
+        (publishedToWebsite ? 'public' : 'internal'),
       featured,
       featuredOrder: raw.website?.featuredOrder ?? (featured ? 1 : 999),
       storeTitle: raw.website?.storeTitle ?? name,

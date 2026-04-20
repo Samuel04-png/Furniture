@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "migrate:live-admin-data": "tsx scripts/migrateLiveAdminData.ts"
+    "migrate:live-admin-data": "tsx scripts/migrateLiveAdminData.ts",
+    "populate:lighting-content": "tsx scripts/populateLightingContent.ts",
+    "publish:lighting-products": "tsx scripts/publishLightingProducts.ts",
+    "publish:moreprod-products": "tsx scripts/publishMoreProdProducts.ts"
   },
   "dependencies": {
     "@dataconnect/generated": "file:src/dataconnect-generated",

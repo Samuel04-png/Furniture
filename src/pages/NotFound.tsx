@@ -1,16 +1,20 @@
 import Button from '../components/Button';
 import { PageHero } from '../components/primitives';
-import { asset } from '../config/site';
+import { getWebsiteMediaItem } from '../lib/websiteMedia';
+import { useTailoredStore } from '../store/useTailoredStore';
 
 
 export default function NotFound() {
+  const companySettings = useTailoredStore((state) => state.companySettings);
+  const heroMedia = getWebsiteMediaItem(companySettings, 'notFoundHero');
+
   return (
     <div className="bg-tm-off-white">
       <PageHero
         eyebrow="Not found"
         title="This room does not exist yet"
         body="The route you requested is not part of the Tailored Manor experience. Use the links below to return to the live platform."
-        image={asset('full bedroom setup/Tailored to reflect your style and provide the comfort you deserve. Transforming a house (4).jpg')}
+        image={heroMedia.image}
         heightClassName="min-h-[60svh]"
 
       >
