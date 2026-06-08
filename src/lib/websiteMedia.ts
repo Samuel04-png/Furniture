@@ -26,7 +26,7 @@ export const websiteMediaDefinitions: Record<WebsiteMediaSlot, WebsiteMediaDefin
     label: 'Homepage hero poster',
     pagePath: '/',
     image: asset(
-      'bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design â€” this bedroom setup (1).jpg',
+      'bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (1).jpg',
     ),
     alt: 'Tailored Manor workshop bedroom scene used as the homepage hero poster.',
     description:
@@ -39,7 +39,7 @@ export const websiteMediaDefinitions: Record<WebsiteMediaSlot, WebsiteMediaDefin
     label: 'Homepage signature feature',
     pagePath: '/',
     image: asset(
-      'bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design â€” this bedroom setup (4).jpg',
+      'bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (4).jpg',
     ),
     alt: 'Bedroom furniture styled as the homepage signature service feature image.',
     description:
@@ -52,7 +52,7 @@ export const websiteMediaDefinitions: Record<WebsiteMediaSlot, WebsiteMediaDefin
     label: 'About page hero',
     pagePath: '/about',
     image: asset(
-      'bedroomfurniture/Crafted with durable, quality wood and finished with care.#sikalehome #bedroom #craftsmanship (5).jpg',
+      'bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (7).jpg',
     ),
     alt: 'Crafted bedroom scene used on the About page hero.',
     description:
@@ -151,7 +151,7 @@ export const websiteMediaDefinitions: Record<WebsiteMediaSlot, WebsiteMediaDefin
     label: 'Not found page hero',
     pagePath: '/404',
     image: asset(
-      'full bedroom setup/Tailored to reflect your style and provide the comfort you deserve. Transforming a house (4).jpg',
+      'full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (4).jpg',
     ),
     alt: 'Bedroom scene used on the 404 page.',
     description: 'Fallback hero image for unknown routes.',

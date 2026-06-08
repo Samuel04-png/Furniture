@@ -17,9 +17,10 @@ const Image = ({
   sizes,
   className,
   style,
+  loading: loadingProp,
   ...props
 }: ImageProps) => {
-  const isPriority = priority || false;
+  const resolvedLoading = loadingProp ?? (priority ? 'eager' : undefined);
   
   if (fill) {
     return (
@@ -27,7 +28,7 @@ const Image = ({
         src={src}
         alt={alt}
         sizes={sizes}
-        loading={isPriority ? 'eager' : 'lazy'}
+        loading={resolvedLoading}
         decoding="async"
         className={cn('absolute inset-0 h-full w-full object-cover', className)}
         style={{ ...style }}
@@ -41,7 +42,7 @@ const Image = ({
       src={src}
       alt={alt}
       sizes={sizes}
-      loading={isPriority ? 'eager' : 'lazy'}
+      loading={resolvedLoading}
       decoding="async"
       className={className}
       style={{ ...style }}
