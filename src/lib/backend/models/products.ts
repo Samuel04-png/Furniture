@@ -79,6 +79,7 @@ const categoryDefaults: Record<
     gallery: [
       '/assets/bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (2).jpg',
       '/assets/bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (3).jpg',
+      '/assets/bedroomfurniture/Crafted with durable, quality wood and finished with a clean, modern design — this bedroom setup (8).jpg',
     ],
   },
   Office: {
@@ -92,6 +93,7 @@ const categoryDefaults: Record<
     gallery: [
       '/assets/full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (2).jpg',
       '/assets/full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (3).jpg',
+      '/assets/full bedroom setup/Crafted with durable, quality wood and styled with a clean, modern finish. This full bedroom se (5).jpg',
     ],
   },
   Outdoor: {
