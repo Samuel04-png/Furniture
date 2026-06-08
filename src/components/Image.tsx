@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { cn } from '../lib/utils';
 
 interface ImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
@@ -7,6 +7,7 @@ interface ImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   fill?: boolean;
   priority?: boolean;
   sizes?: string;
+  fallback?: string;
 }
 
 const Image = ({
@@ -18,18 +19,30 @@ const Image = ({
   className,
   style,
   loading: loadingProp,
+  fallback,
   ...props
 }: ImageProps) => {
   const resolvedLoading = loadingProp ?? (priority ? 'eager' : undefined);
-  
+  const [hasError, setHasError] = useState(false);
+  const effectiveSrc = hasError && fallback ? fallback : src;
+
+  const handleError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    if (fallback && !hasError) {
+      setHasError(true);
+      return;
+    }
+    props.onError?.(e);
+  };
+
   if (fill) {
     return (
       <img
-        src={src}
+        src={effectiveSrc}
         alt={alt}
         sizes={sizes}
         loading={resolvedLoading}
         decoding="async"
+        onError={handleError}
         className={cn('absolute inset-0 h-full w-full object-cover', className)}
         style={{ ...style }}
         {...props}
@@ -39,11 +52,12 @@ const Image = ({
 
   return (
     <img
-      src={src}
+      src={effectiveSrc}
       alt={alt}
       sizes={sizes}
       loading={resolvedLoading}
       decoding="async"
+      onError={handleError}
       className={className}
       style={{ ...style }}
       {...props}

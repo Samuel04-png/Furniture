@@ -148,7 +148,7 @@ export default function Configurator() {
                         onClick={() => setDraft({ productId: product.id, isCustomDesign: false, customDesignImage: null, dimensions: product.sizePresets[0].dimensions, sizePresetId: product.sizePresets[0].id, materialId: product.materials[0], finish: product.finishes[0] })}
                         className={`overflow-hidden rounded-[1.8rem] border text-left transition ${draft.productId === product.id ? 'border-tm-gold shadow-[0_0_0_2px_rgba(184,147,90,0.18)]' : 'border-black/8'}`}
                       >
-                        <Image src={product.cardImage} alt={product.name} className="h-56" />
+                        <Image src={product.cardImage} alt={product.name} className="h-56 w-full object-cover" />
                         <div className="p-5">
 
                           <p className="font-dm text-[0.68rem] uppercase tracking-[0.24em] text-tm-gold">{product.category}</p>
@@ -165,7 +165,7 @@ export default function Configurator() {
                   </div>
                   {draft.customDesignImage ? (
                     <div className="mt-6 rounded-[1.6rem] border border-black/8 bg-[#f6f1e7] p-5">
-                      <Image src={draft.customDesignImage} alt="Custom design" className="h-56" />
+                      <Image src={draft.customDesignImage} alt="Custom design" className="h-56 w-full object-cover" />
                       <TextAreaField label="Describe your vision" rows={4} value={draft.customDesignNotes} onChange={(event) => setDraft({ isCustomDesign: true, customDesignNotes: event.target.value, productId: undefined })} className="mt-4" />
                     </div>
 
@@ -184,7 +184,7 @@ export default function Configurator() {
                         onClick={() => setDraft({ materialId: material.id })}
                         className={`overflow-hidden rounded-[1.8rem] border text-left transition ${draft.materialId === material.id ? 'border-tm-gold shadow-[0_0_0_2px_rgba(184,147,90,0.18)]' : 'border-black/8'}`}
                       >
-                        <Image src={material.grainImage} alt={material.name} className="h-44" />
+                        <Image src={material.grainImage} alt={material.name} className="h-44 w-full object-cover" />
                         <div className="p-5">
 
                           <h3 className="font-cormorant text-[1.9rem] leading-none tracking-[-0.03em] text-tm-obsidian">{material.name}</h3>
@@ -312,7 +312,7 @@ export default function Configurator() {
               <div className="rounded-[2rem] border border-black/8 bg-white p-6 shadow-[0_30px_90px_rgba(12,12,12,0.07)] lg:sticky lg:top-6 lg:max-h-[calc(100svh-3rem)] lg:overflow-y-auto">
                 <p className="font-dm text-[0.72rem] uppercase tracking-[0.24em] text-tm-warm-gray">Your configuration</p>
                 <div className="mt-5 overflow-hidden rounded-[1.6rem] bg-[#f6f1e7] p-4">
-                  {selectedProduct ? <Image src={selectedProduct.cardImage} alt={selectedProduct.name} className="h-56" /> : draft.customDesignImage ? <Image src={draft.customDesignImage} alt="Custom design" className="h-56" /> : <div className="flex h-56 items-center justify-center rounded-[1.4rem] border border-dashed border-black/10 font-dm text-sm text-tm-warm-gray">No piece selected yet</div>}
+                  {selectedProduct ? <Image src={selectedProduct.cardImage} alt={selectedProduct.name} className="h-56 w-full object-cover" /> : draft.customDesignImage ? <Image src={draft.customDesignImage} alt="Custom design" className="h-56 w-full object-cover" /> : <div className="flex h-56 items-center justify-center rounded-[1.4rem] border border-dashed border-black/10 font-dm text-sm text-tm-warm-gray">No piece selected yet</div>}
                   <h3 className="mt-5 font-cormorant text-[2rem] leading-none tracking-[-0.03em] text-tm-obsidian">{selectedProduct?.name || (draft.customDesignImage ? 'Bespoke Custom Design' : 'Select a piece')}</h3>
                 </div>
 

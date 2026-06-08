@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
+import Image from '../components/Image';
 import { PageHero, SectionIntro } from '../components/primitives';
 import { useTailoredStore } from '../store/useTailoredStore';
 
@@ -26,7 +27,7 @@ export default function Portfolio() {
             {projects.map((project, index) => (
               <Link key={project.id} to={`/portfolio/${project.slug}`} className={`overflow-hidden rounded-[2rem] border border-black/8 bg-white shadow-[0_24px_70px_rgba(12,12,12,0.07)] ${index === 0 ? 'md:col-span-2' : ''}`}>
                 <div className={`${index === 0 ? 'grid md:grid-cols-[1.2fr_0.8fr]' : ''}`}>
-                  <img src={project.heroImage} alt={project.title} className={`w-full object-cover ${index === 0 ? 'h-full min-h-[26rem]' : 'h-80'}`} />
+                  <Image src={project.heroImage} alt={project.title} className={`w-full object-cover ${index === 0 ? 'h-full min-h-[26rem]' : 'h-80'}`} />
                   <div className="p-8">
                     <p className="font-dm text-[0.72rem] uppercase tracking-[0.24em] text-tm-gold">{project.category}</p>
                     <h2 className="mt-4 font-cormorant text-[clamp(2rem,4vw,3.5rem)] leading-[0.96] tracking-[-0.04em] text-tm-obsidian">{project.title}</h2>

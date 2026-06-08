@@ -622,7 +622,7 @@ export function subscribePortfolioProjects(
 ) {
   return subscribeCollection<PortfolioProject>(
     'portfolioProjects',
-    [where('visibleOnSite', '==', true)],
+    [],
     (projects) =>
       onData(
         projects

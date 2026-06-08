@@ -1,4 +1,5 @@
 import { Navigate, useParams } from 'react-router-dom';
+import Image from '../components/Image';
 import { PageHero, SectionIntro } from '../components/primitives';
 import { useTailoredStore } from '../store/useTailoredStore';
 
@@ -19,7 +20,7 @@ export default function PortfolioDetail() {
             <SectionIntro eyebrow="Challenge" title={project.challenge} body={project.solution} />
             <div className="mt-10 grid gap-4 md:grid-cols-2">
               {project.gallery.map((image) => (
-                <img key={image} src={image} alt={project.title} className="h-72 w-full rounded-[1.6rem] object-cover" />
+                <Image key={image} src={image} alt={project.title} className="h-72 w-full rounded-[1.6rem] object-cover" />
               ))}
             </div>
           </div>
